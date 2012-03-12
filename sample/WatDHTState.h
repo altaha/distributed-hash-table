@@ -18,6 +18,8 @@ class WatDHTState {
   void wait_e(State state);
   // Wait until state is greater than or equal to the parameter.
   void wait_ge(State state);
+  // Check current state without blocking
+  int check_state(void);
 
  private:
   State dht_state;

@@ -35,5 +35,12 @@ void WatDHTState::wait_ge(State state) {
   }
   pthread_mutex_unlock(&wait_on_state);
 }
+
+int WatDHTState::check_state(void) {
+  pthread_mutex_lock(&wait_on_state);
+  State temp = dht_state;
+  pthread_mutex_unlock(&wait_on_state);
+  return (int) temp;
+}
 } // namespace WatDHT
 
