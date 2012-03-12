@@ -31,6 +31,8 @@ WatDHTServer::WatDHTServer(const char* id,
   server_node_id.id = wat_id.to_string();
   server_node_id.ip = ip;
   server_node_id.port = port;
+  rt_mutex = hash_mutex = PTHREAD_RWLOCK_INITIALIZER;
+
   int rc = pthread_create(&rpc_thread, NULL, start_rpc_server, this);
   if (rc != 0) {
     throw rc; // Just throw the error code
@@ -38,6 +40,8 @@ WatDHTServer::WatDHTServer(const char* id,
 }
 
 WatDHTServer::~WatDHTServer() {
+	pthread_rwlock_destroy(&rt_mutex);
+	pthread_rwlock_destroy(&hash_mutex);
   printf("In destructor of WatDHTServer\n");
   delete rpc_server;
 }
@@ -53,7 +57,7 @@ int WatDHTServer::join(const char* ip, int port) {
   boost::shared_ptr<TProtocol> protocol(new TBinaryProtocol(transport));
   WatDHTClient client(protocol);
   try {
-    transport->open();    
+    transport->open();
     std::string remote_str;
     client.ping(remote_str);
     transport->close();
@@ -69,6 +73,22 @@ int WatDHTServer::join(const char* ip, int port) {
     printf("Caught exception: %s\n", e.what());
   } 
   return 0;
+}
+
+void WatDHTServer::get(std::string& _return, const std::string& key, std::string ip, int port)
+{
+	boost::shared_ptr<TSocket> socket(new TSocket(ip, port));
+	boost::shared_ptr<TTransport> transport(new TBufferedTransport(socket));
+	boost::shared_ptr<TProtocol> protocol(new TBinaryProtocol(transport));
+	WatDHTClient client(protocol);
+	try {
+		transport->open();
+		std::string remote_str;
+		client.get(_return, key);
+		transport->close();
+	} catch (TTransportException e) {
+		printf("Caught exception: %s\n", e.what());
+	}
 }
 
 int WatDHTServer::wait() {

@@ -6,6 +6,9 @@
 #include "WatDHTState.h"
 #include <pthread.h>
 #include <string>
+#include <list>
+#include <map>
+#include <pthread.h>
 #include <thrift/server/TThreadedServer.h>
 
 namespace WatDHT {
@@ -15,6 +18,10 @@ class WatDHTServer {
   WatDHTServer(const char* id, const char* ip, int port) throw (int);  
   ~WatDHTServer();
   
+  std::list<NodeID> predecessors, successors, rtable;
+  std::map<std::string,std::string> hash_table;
+  pthread_rwlock_t rt_mutex, hash_mutex;
+
   // Join the DHT network
   int join(const char* ip, int port);
   // Block and wait until the server shutdowns.
@@ -26,6 +33,8 @@ class WatDHTServer {
   int get_port() { return server_node_id.port; }
   const WatID& get_id() { return wat_id; } 
   
+  void get(std::string& _return, const std::string& key, std::string ip, int port);
+
  private:
   WatID wat_id;             // This node's ID on the DHT.
   NodeID server_node_id;    // Include the ID, IP address and port.

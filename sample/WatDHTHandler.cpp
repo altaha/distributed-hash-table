@@ -5,6 +5,14 @@
 
 #include "WatDHTServer.h"
 
+using namespace ::apache::thrift;
+using namespace ::apache::thrift::protocol;
+using namespace ::apache::thrift::transport;
+using namespace ::apache::thrift::server;
+using namespace ::apache::thrift::concurrency;
+
+using boost::shared_ptr;
+
 namespace WatDHT {
 
 WatDHTHandler::WatDHTHandler(WatDHTServer* dht_server) : server(dht_server) {
@@ -15,6 +23,26 @@ WatDHTHandler::~WatDHTHandler() {}
 
 void WatDHTHandler::get(std::string& _return, const std::string& key) {
   // Your implementation goes here
+	WatID toFind, successor;
+	toFind.copy_from(key);
+	successor.copy_from(server->successors.begin()->id);
+	if (toFind < successor  &&  server->get_id() < toFind) {
+		std::map<std::string,std::string>::iterator it = server->hash_table.find(key);
+		if (it == server->hash_table.end()) {
+			//throw WatDHTException(WatDHTErrorType::KEY_NOT_FOUND, "Key not found", server->get_id());
+		}
+		else { _return = it->second; }
+	}
+	else {
+		//find node in neighbour set and routing table that is closest in distance to key
+		std::list<NodeID>::iterator it, closest = server->successors.begin();
+		WatID curr;
+		for (it=server->successors.begin(); it!=server->successors.end(); it++) {
+			curr.copy_from(it->ip);
+			toFind.distance(curr);
+		}
+		server->get(_return, key, it->ip, it->port);
+	}
   printf("get\n");
 }    
     
