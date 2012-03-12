@@ -44,7 +44,7 @@ WatDHTServer::~WatDHTServer() {
 
 // Join the DHT network and wait
 int WatDHTServer::join(const char* ip, int port) {
-  wat_state.wait_ge(WatDHTState::SERVER_CREATED);
+  wat_state.wait_ge(WatDHT::SERVER_CREATED);
   
   // The following is an example of sending a PING. This is normally not
   // necessary during the join operation.
@@ -72,7 +72,7 @@ int WatDHTServer::join(const char* ip, int port) {
 }
 
 int WatDHTServer::wait() {
-  wat_state.wait_ge(WatDHTState::SERVER_CREATED);
+  wat_state.wait_ge(WatDHT::SERVER_CREATED);
   // Perhaps perform your periodic tasks in this thread.
   pthread_join(rpc_thread, NULL);
   return 0;
@@ -80,7 +80,7 @@ int WatDHTServer::wait() {
 
 void WatDHTServer::set_rpc_server(TThreadedServer* server) {
   rpc_server = server;
-  wat_state.change_state(WatDHTState::SERVER_CREATED);
+  wat_state.change_state(WatDHT::SERVER_CREATED);
 }
 
 void* WatDHTServer::start_rpc_server(void* param) {

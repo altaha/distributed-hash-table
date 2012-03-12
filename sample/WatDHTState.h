@@ -5,10 +5,11 @@
 
 namespace WatDHT {
 
+// Add more states as needed.
+enum State {INIT, SERVER_CREATED};
+
 class WatDHTState {
  public:
-  // Add more states as needed.
-  enum State {INIT, SERVER_CREATED};
 
   WatDHTState();
   ~WatDHTState();
@@ -19,7 +20,7 @@ class WatDHTState {
   // Wait until state is greater than or equal to the parameter.
   void wait_ge(State state);
   // Check current state without blocking
-  int check_state(void);
+  State check_state(void);
 
  private:
   State dht_state;
