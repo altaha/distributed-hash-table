@@ -22,8 +22,6 @@ class WatDHTServer {
   std::map<std::string,std::string> hash_table;
   pthread_rwlock_t rt_mutex, hash_mutex;
 
-  // Join the DHT network
-  int join(const char* ip, int port);
   // Block and wait until the server shutdowns.
   int wait();
   // Set the RPC server once it is created in a child thread.
@@ -35,11 +33,14 @@ class WatDHTServer {
   const NodeID& get_NodeID() { return server_node_id; }
   State get_state() { return wat_state.check_state(); }
   
-  void get(std::string& _return, const std::string& key, std::string ip, int port);
-  void put(const std::string& key, const std::string& val, const int32_t duration, std::string ip, int port);
-  void forward_join(std::vector<NodeID> & _return, const NodeID& nid, std::string ip, int port);
   void find_closest(const std::string& key, NodeID& _dest);
   bool isOwner(const std::string& key);
+
+  //RPC functions
+  void get(std::string& _return, const std::string& key, std::string ip, int port);
+  void put(const std::string& key, const std::string& val, const int32_t duration, std::string ip, int port);
+  int  join(const char* ip, int port);
+  void forward_join(std::vector<NodeID> & _return, const NodeID& nid, std::string ip, int port);
 
  private:
   WatID wat_id;             // This node's ID on the DHT.
