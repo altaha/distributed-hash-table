@@ -106,6 +106,25 @@ void WatDHTServer::put(const std::string& key, const std::string& val, const int
 		printf("Caught exception: %s\n", e.what());
 	}
 }
+
+void WatDHTServer::forward_join(std::vector<NodeID> & _return, const NodeID& nid, std::string ip, int port)
+{
+	boost::shared_ptr<TSocket> socket(new TSocket(ip, port));
+	boost::shared_ptr<TTransport> transport(new TBufferedTransport(socket));
+	boost::shared_ptr<TProtocol> protocol(new TBinaryProtocol(transport));
+	WatDHTClient client(protocol);
+	try {
+		transport->open();
+		std::string remote_str;
+		client.join(_return, nid);
+		transport->close();
+	} catch (TTransportException e) {
+		printf("Caught exception: %s\n", e.what());
+	}
+
+	_return.push_back(server_node_id); 	//add my nodeID to return
+}
+
 void WatDHTServer::find_closest(const std::string& key, NodeID& _dest)
 {
 	//** MISSING: check if any node in neighbour set is owner of key **//

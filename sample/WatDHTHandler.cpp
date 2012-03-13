@@ -27,7 +27,10 @@ void WatDHTHandler::get(std::string& _return, const std::string& key) {
 	if (server->isOwner(key)) {
 		std::map<std::string,std::string>::iterator it = server->hash_table.find(key);
 		if (it == server->hash_table.end()) {
-			//throw WatDHTException(WatDHTErrorType::KEY_NOT_FOUND, "Key not found", server->get_id());
+			WatDHTException e;
+			e.__set_error_code(WatDHTErrorType::KEY_NOT_FOUND);
+			e.__set_error_message("Key not found");
+			throw e;
 		}
 		else { _return = it->second; }
 	}
@@ -64,9 +67,20 @@ void WatDHTHandler::put(const std::string& key,
   printf("put\n");
 }
 
-void WatDHTHandler::join(std::vector<NodeID> & _return, const NodeID& nid) {
-  // Your implementation goes here
-  printf("join\n");
+void WatDHTHandler::join(std::vector<NodeID> & _return, const NodeID& nid)
+{
+	if (server->isOwner(nid.id)) { // this is the predecessor of nid
+		// populate _return (ensure all neighbours are alive before attaching them)
+		_return.insert(_return.begin(), server->get_NodeID());
+		_return.insert(_return.end(), server->predecessors.begin(), server->predecessors.end());
+		_return.insert(_return.end(), server->successors.begin(), server->successors.end());
+		_return.insert(_return.end(), server->rtable.begin(), server->rtable.end());
+	} else {
+		NodeID _dest;
+		server->find_closest(nid.id, _dest);
+		server->forward_join(_return, nid, _dest.ip, _dest.port);
+	}
+	printf("join\n");
 }    
     
 
