@@ -22,11 +22,9 @@ WatDHTHandler::WatDHTHandler(WatDHTServer* dht_server) : server(dht_server) {
 WatDHTHandler::~WatDHTHandler() {}
 
 void WatDHTHandler::get(std::string& _return, const std::string& key) {
-  // Your implementation goes here
-	WatID toFind, successor;
-	toFind.copy_from(key);
-	successor.copy_from(server->successors.begin()->id);
-	if (toFind < successor  &&  server->get_id() < toFind) {
+	while (server->get_state()==MIGRATE_KV);
+
+	if (server->isOwner(key)) {
 		std::map<std::string,std::string>::iterator it = server->hash_table.find(key);
 		if (it == server->hash_table.end()) {
 			//throw WatDHTException(WatDHTErrorType::KEY_NOT_FOUND, "Key not found", server->get_id());
@@ -34,14 +32,9 @@ void WatDHTHandler::get(std::string& _return, const std::string& key) {
 		else { _return = it->second; }
 	}
 	else {
-		//find node in neighbour set and routing table that is closest in distance to key
-		std::list<NodeID>::iterator it, closest = server->successors.begin();
-		WatID curr;
-		for (it=server->successors.begin(); it!=server->successors.end(); it++) {
-			curr.copy_from(it->ip);
-			toFind.distance(curr);
-		}
-		server->get(_return, key, it->ip, it->port);
+		NodeID _dest;
+		server->find_closest(key, _dest);
+		server->get(_return, key, _dest.ip, _dest.port);
 	}
   printf("get\n");
 }    
@@ -49,7 +42,25 @@ void WatDHTHandler::get(std::string& _return, const std::string& key) {
 void WatDHTHandler::put(const std::string& key,
                         const std::string& val, 
                         const int32_t duration) {
-  // Your implementation goes here
+	while (server->get_state()==MIGRATE_KV);
+
+	if (server->isOwner(key)) {
+		pthread_rwlock_wrlock(&(server->hash_mutex));
+		if (duration==0) { server->hash_table.erase(key); }
+		else {
+			server->hash_table.insert(std::pair<std::string,std::string>(key,val));
+		}
+		pthread_rwlock_unlock(&(server->hash_mutex));
+
+		if (duration>0) {
+			//add to toRemove queue
+		}
+	}
+	else {
+		NodeID _dest;
+		server->find_closest(key, _dest);
+		server->put(key, val, duration, _dest.ip, _dest.port);
+	}
   printf("put\n");
 }
 

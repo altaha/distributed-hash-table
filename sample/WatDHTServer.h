@@ -32,8 +32,12 @@ class WatDHTServer {
   const std::string& get_ipaddr() { return server_node_id.ip; }
   int get_port() { return server_node_id.port; }
   const WatID& get_id() { return wat_id; } 
+  State get_state() { return wat_state.check_state(); }
   
   void get(std::string& _return, const std::string& key, std::string ip, int port);
+  void put(const std::string& key, const std::string& val, const int32_t duration, std::string ip, int port);
+  void find_closest(const std::string& key, NodeID& _dest);
+  bool isOwner(const std::string& key);
 
  private:
   WatID wat_id;             // This node's ID on the DHT.

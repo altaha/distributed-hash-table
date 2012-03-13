@@ -91,6 +91,69 @@ void WatDHTServer::get(std::string& _return, const std::string& key, std::string
 	}
 }
 
+void WatDHTServer::put(const std::string& key, const std::string& val, const int32_t duration, std::string ip, int port)
+{
+	boost::shared_ptr<TSocket> socket(new TSocket(ip, port));
+	boost::shared_ptr<TTransport> transport(new TBufferedTransport(socket));
+	boost::shared_ptr<TProtocol> protocol(new TBinaryProtocol(transport));
+	WatDHTClient client(protocol);
+	try {
+		transport->open();
+		std::string remote_str;
+		client.put(key, val, duration);
+		transport->close();
+	} catch (TTransportException e) {
+		printf("Caught exception: %s\n", e.what());
+	}
+}
+void WatDHTServer::find_closest(const std::string& key, NodeID& _dest)
+{
+	//** MISSING: check if any node in neighbour set is owner of key **//
+	//find node in neighbour set and routing table that is closest in distance to key
+	std::list<NodeID>::iterator it, closest;
+	WatID toFind, curr, temp, closestDist;
+	closestDist.copy_from(""); // initializing to a null WatID -- test correctness
+	toFind.copy_from(key);
+	pthread_rwlock_rdlock(&rt_mutex);
+	for (it=successors.begin(); it!=successors.end(); it++) {
+		curr.copy_from(it->ip);
+		temp = curr.distance(toFind);
+		if (temp < closestDist) {
+			closestDist = temp;
+			closest = it;
+		}
+	}
+
+	for (it=predecessors.begin(); it!=predecessors.end(); it++) {
+		curr.copy_from(it->ip);
+		temp = curr.distance(toFind);
+		if (temp < closestDist) {
+			closestDist = temp;
+			closest = it;
+		}
+	}
+
+	for (it=rtable.begin(); it!=rtable.end(); it++) {
+		curr.copy_from(it->ip);
+		temp = curr.distance(toFind);
+		if (temp < closestDist) {
+			closestDist = temp;
+			closest = it;
+		}
+	}
+	pthread_rwlock_unlock(&rt_mutex);
+
+	_dest = *closest;
+}
+
+bool WatDHTServer::isOwner(const std::string& key)
+{
+	WatID toFind, successor;
+	toFind.copy_from(key);
+	successor.copy_from(successors.begin()->id);
+	return (toFind < successor  &&  get_id() < toFind)?true:false;
+}
+
 int WatDHTServer::wait() {
   wat_state.wait_ge(WatDHT::SERVER_CREATED);
   // Perhaps perform your periodic tasks in this thread.
