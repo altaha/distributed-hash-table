@@ -3,6 +3,7 @@
 #include "WatID.h"
 #include "WatDHTState.h"
 #include "WatDHTHandler.h"
+#include <unistd.h>
 #include <iostream>
 #include <pthread.h>
 #include <protocol/TBinaryProtocol.h>
@@ -214,10 +215,26 @@ void WatDHTServer::migrate_kv(std::map<std::string, std::string>& _return, const
 	boost::shared_ptr<TTransport> transport(new TBufferedTransport(socket));
 	boost::shared_ptr<TProtocol> protocol(new TBinaryProtocol(transport));
 	WatDHTClient client(protocol);
+	static uint sleepTime;
 	try {
 		transport->open();
 		std::string remote_str;
-		client.migrate_kv(_return, nid);
+		try {
+			client.migrate_kv(_return, nid);
+		} catch (WatDHTException e) {
+			std::cout << "Caught exception: " << e.error_message << std::endl;
+
+			if (e.error_code==WatDHTErrorType::INCORRECT_MIGRATION_SOURCE){
+				migrate_kv(_return, e.node.id, e.node.ip, e.node.port);
+			}
+			else if (e.error_code==WatDHTErrorType::OL_MIGRATION_IN_PROGRESS) {
+				if (sleepTime<2) { sleepTime=2; }
+				sleep(sleepTime);
+				sleepTime*=sleepTime;
+				migrate_kv(_return, nid, ip, port);
+				sleepTime = 0;
+			}
+		}
 		transport->close();
 	} catch (TTransportException e) {
 		printf("Caught exception: %s\n", e.what());
@@ -256,7 +273,7 @@ void WatDHTServer::put(const std::string& key, const std::string& val, const int
 	}
 }
 
-void WatDHTServer::find_closest(const std::string& key, NodeID& _dest)
+void WatDHTServer::find_closest(NodeID& _dest, const std::string& key, bool cw)
 {
 	//** TODO: check if any node in neighbour set is owner of key **//
 	//find node in neighbour set and routing table that is closest in distance to key
@@ -269,7 +286,8 @@ void WatDHTServer::find_closest(const std::string& key, NodeID& _dest)
 	for (unsigned int i=0; i<pappa_list.size(); i++) {
 		for (it=pappa_list[i]->begin(); it!=pappa_list[i]->end(); it++) {
 			curr.copy_from(it->ip);
-			temp = curr.distance_cr(toFind);
+			 if (cw) { temp = curr.distance_cr(toFind); }
+			 else	 { temp = curr.distance_ccr(toFind); }
 			if (temp < closestDist) {
 				closestDist = temp;
 				closest = it;
@@ -280,6 +298,42 @@ void WatDHTServer::find_closest(const std::string& key, NodeID& _dest)
 	pthread_rwlock_unlock(&rt_mutex);
 
 	_dest = *closest;
+}
+
+void WatDHTServer::closest_node_cr(NodeID& _return, const std::string& id, std::string ip, int port)
+{
+	boost::shared_ptr<TSocket> socket(new TSocket(ip, port));
+	boost::shared_ptr<TTransport> transport(new TBufferedTransport(socket));
+	boost::shared_ptr<TProtocol> protocol(new TBinaryProtocol(transport));
+	WatDHTClient client(protocol);
+	try {
+		transport->open();
+		std::string remote_str;
+		client.closest_node_cr(_return, id);
+		transport->close();
+	} catch (TTransportException e) {
+		printf("Caught exception: %s\n", e.what());
+	}
+
+	//**TODO** use return value to update nearest neighbours
+}
+
+void WatDHTServer::closest_node_ccr(NodeID& _return, const std::string& id, std::string ip, int port)
+{
+	boost::shared_ptr<TSocket> socket(new TSocket(ip, port));
+	boost::shared_ptr<TTransport> transport(new TBufferedTransport(socket));
+	boost::shared_ptr<TProtocol> protocol(new TBinaryProtocol(transport));
+	WatDHTClient client(protocol);
+	try {
+		transport->open();
+		std::string remote_str;
+		client.closest_node_ccr(_return, id);
+		transport->close();
+	} catch (TTransportException e) {
+		printf("Caught exception: %s\n", e.what());
+	}
+
+	//**TODO** use return value to update nearest neighbours
 }
 
 bool WatDHTServer::isOwner(const std::string& key)

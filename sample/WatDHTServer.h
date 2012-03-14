@@ -37,7 +37,7 @@ class WatDHTServer {
   const NodeID& get_NodeID() { return server_node_id; }
   State get_state() { return wat_state.check_state(); }
   
-  void find_closest(const std::string& key, NodeID& _dest);
+  void find_closest(NodeID& _dest, const std::string& key, bool cw);
   bool isOwner(const std::string& key);
 
   void update_connections(std::vector<NodeID>& input, bool ping_nodes);
@@ -49,6 +49,8 @@ class WatDHTServer {
   void join(std::vector<NodeID>& _return, const NodeID& nid, std::string ip, int port);
   void migrate_kv(std::map<std::string, std::string>& _return, const std::string& nid,
 		  std::string ip, int port);
+  void closest_node_cr(NodeID& _return, const std::string& id, std::string ip, int port);
+  void closest_node_ccr(NodeID& _return, const std::string& id, std::string ip, int port);
   //void forward_join(std::vector<NodeID> & _return, const NodeID& nid, std::string ip, int port);
 
  private:

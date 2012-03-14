@@ -36,7 +36,7 @@ void WatDHTHandler::get(std::string& _return, const std::string& key) {
 	}
 	else {
 		NodeID _dest;
-		server->find_closest(key, _dest);
+		server->find_closest(_dest, key, true);
 		server->get(_return, key, _dest.ip, _dest.port);
 	}
   printf("get\n");
@@ -61,7 +61,7 @@ void WatDHTHandler::put(const std::string& key,
 	}
 	else {
 		NodeID _dest;
-		server->find_closest(key, _dest);
+		server->find_closest(_dest, key, true);
 		server->put(key, val, duration, _dest.ip, _dest.port);
 	}
   printf("put\n");
@@ -77,7 +77,7 @@ void WatDHTHandler::join(std::vector<NodeID> & _return, const NodeID& nid)
 		_return.insert(_return.end(), server->successors.begin(), server->successors.end());
 	} else {
 		NodeID _dest;
-		server->find_closest(nid.id, _dest);
+		server->find_closest(_dest, nid.id, true);
 		server->join(_return, nid, _dest.ip, _dest.port);
 	}
 	printf("join\n");
@@ -107,13 +107,18 @@ void WatDHTHandler::migrate_kv(std::map<std::string, std::string> & _return,
 	}
 
 	if (server->successors.front().id==nid) { // nid is my successor
-		//**MISSING** return all values in hash_Table >= nid
-
-	} else {
-	    NodeID it = server->predecessors.front();
-		server->migrate_kv(_return, nid, it.ip, it.port);
+		std::map<std::string, std::string>::iterator itlow = server->hash_table.lower_bound(nid); // get pointer to key that is >= nid
+		_return.insert(itlow,server->hash_table.end()); 			// copy key/value pairs for returning
+		server->hash_table.erase(itlow,server->hash_table.end());	// delete pairs from local structure
 	}
-	printf("join\n");
+	else {
+		WatDHTException e;
+		e.__set_error_code(WatDHTErrorType::INCORRECT_MIGRATION_SOURCE);
+		e.__set_error_message("I'm not your predecessor.");
+		//**TODO**Check node before sending it back
+		e.__set_node(server->successors.front());
+		throw e;		return;
+	}
   printf("migrate_kv\n");
 }
 
@@ -125,13 +130,13 @@ void WatDHTHandler::gossip_neighbors(std::vector<NodeID> & _return,
 }
 
 void WatDHTHandler::closest_node_cr(NodeID& _return, const std::string& id) {
-  // Your implementation goes here
+	server->find_closest(_return, id, true);
   printf("closest_node_cr\n");
 }
 
 void WatDHTHandler::closest_node_ccr(NodeID& _return, const std::string& id) {
-  // Your implementation goes here
-  printf("closest_node_ccr\n");
+	server->find_closest(_return, id, false);
+	printf("closest_node_ccr\n");
 }    
 } // namespace WatDHT
 
