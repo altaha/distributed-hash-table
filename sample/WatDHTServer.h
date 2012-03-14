@@ -13,6 +13,11 @@
 
 namespace WatDHT {
 
+#define BUCKET_1 0x1000
+#define BUCKET_2 0x0100
+#define BUCKET_3 0x0010
+#define BUCKET_4 0x0001
+
 class WatDHTServer {
  public:
   WatDHTServer(const char* id, const char* ip, int port) throw (int);  
@@ -23,6 +28,8 @@ class WatDHTServer {
 
   std::map<std::string,std::string> hash_table;
   pthread_rwlock_t rt_mutex, hash_mutex;
+
+  uint rt_buckets;
 
   int  test(const char* ip, int port);
 
