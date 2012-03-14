@@ -18,7 +18,9 @@ class WatDHTServer {
   WatDHTServer(const char* id, const char* ip, int port) throw (int);  
   ~WatDHTServer();
   
+  std::vector< std::list<NodeID>* > pappa_list;
   std::list<NodeID> predecessors, successors, rtable;
+
   std::map<std::string,std::string> hash_table;
   pthread_rwlock_t rt_mutex, hash_mutex;
 
@@ -44,7 +46,7 @@ class WatDHTServer {
   void join(std::vector<NodeID>& _return, const NodeID& nid, std::string ip, int port);
   void migrate_kv(std::map<std::string, std::string>& _return, const std::string& nid,
 		  std::string ip, int port);
-  void forward_join(std::vector<NodeID> & _return, const NodeID& nid, std::string ip, int port);
+  //void forward_join(std::vector<NodeID> & _return, const NodeID& nid, std::string ip, int port);
 
  private:
   WatID wat_id;             // This node's ID on the DHT.

@@ -24,6 +24,20 @@ using boost::shared_ptr;
 
 namespace WatDHT {
 
+/*bool compNodeID (const NodeID& i,const NodeID& j)
+{
+	WatID k, l;
+	k.copy_from(i.id); l.copy_from(j.id);
+	return (k<l);
+}
+
+bool WatDHTServer::compDistCR (const NodeID& i,const NodeID& j)
+{
+	WatID k, l;
+	k.copy_from(i.id); l.copy_from(j.id);
+	return ( this->wat_id.distance_cr(k) < this->wat_id.distance_cr(l) );
+}*/
+
 WatDHTServer::WatDHTServer(const char* id, 
                            const char* ip, 
                            int port) throw (int) : rpc_server(NULL) {
@@ -32,7 +46,12 @@ WatDHTServer::WatDHTServer(const char* id,
   server_node_id.id = wat_id.to_string();
   server_node_id.ip = ip;
   server_node_id.port = port;
-  rt_mutex = hash_mutex = PTHREAD_RWLOCK_INITIALIZER;
+  pthread_rwlock_init(&rt_mutex, NULL);
+  pthread_rwlock_init(&hash_mutex, NULL);
+
+  pappa_list.push_back(&predecessors);
+  pappa_list.push_back(&successors);
+  pappa_list.push_back(&rtable);
 
   int rc = pthread_create(&rpc_thread, NULL, start_rpc_server, this);
   if (rc != 0) {
@@ -77,24 +96,85 @@ int WatDHTServer::test(const char* ip, int port) {
 }
 
 // Join the DHT network and wait
-void WatDHTServer::join(std::vector<NodeID>& _return, const NodeID& nid, std::string ip, int port) {
+void WatDHTServer::join(std::vector<NodeID>& _return, const NodeID& nid, std::string ip, int port)
+{
   wat_state.wait_ge(WatDHT::SERVER_CREATED);
 
   boost::shared_ptr<TSocket> socket(new TSocket(ip, port));
   boost::shared_ptr<TTransport> transport(new TBufferedTransport(socket));
   boost::shared_ptr<TProtocol> protocol(new TBinaryProtocol(transport));
   WatDHTClient client(protocol);
-  try {
-    transport->open();
-    std::string remote_str;
-    client.join(_return, nid);
-    transport->close();
-  } catch (TTransportException e) {
-    printf("Caught exception: %s\n", e.what());
+
+  if(nid == this->server_node_id){ //initate join
+	  this->wat_state.change_state(MIGRATE_KV);
   }
-  //**MISSING** use return vector to populate neighbour set
-  this->wat_state.change_state(MIGRATE_KV);
+
+  try {
+	transport->open();
+	std::string remote_str;
+	client.join( _return, nid);
+	transport->close();
+
+  } catch (TTransportException e) {
+	printf("Caught exception: %s\n", e.what());
+  }
+  if(nid == this->server_node_id) //join initiator
+  {
+	  //**TODO** use return vector to populate neighbour set
+	  std::vector<NodeID>::iterator it;
+	  for (it=_return.begin(); it!=_return.end(); it++) {
+		  std::cout << "NodeID = " << it->ip << std::endl;
+	  }
+
+
+
+	  //populate contacts
+	  /*
+	  std::sort(_return.begin(), _return.end(), compNodeID );
+	  //insertion sort by
+	  WatID temp, last_dist;
+	  uint i, j, k, l;
+	  j = k = l = _return.size();
+	  for(i=0; i<_return.size(); ++i) {
+		  temp.copy_from(_return[i].id);
+		  if(i==0){
+			  last_dist = wat_id.distance_cr(temp);
+		  }else{
+			  if( wat_id.distance_cr(temp) < last_dist ){
+				  break;
+			  }
+			  last_dist = wat_id.distance_cr(temp);
+		  }
+	  }
+	  successors.push_back(_return[--i]); //i is now first successor
+	  if(i+1<_return.size() || i-3>=0){
+		  if( i+1<_return.size() ){ j = i+1;}
+		  else { j = i-3; }
+		  successors.push_back(_return[j]);
+	  }
+	  if(i-1>=0 || _return.size()>i+2){
+		  if( i-1>=0 ){ k = i-1;}
+		  else { k = i+2; }
+		  predecessors.push_back(_return[k]);
+	  }
+	  if(i-2>=0 || _return.size()>i+3){
+		  if( i-2>=0 ){ l = i-2;}
+		  else { l = i+3; }
+		  predecessors.push_back(_return[l]);
+	  }*/
+
+  }
+  else{ //forward join
+	  for(uint i=0; i<_return.size(); i++){
+		  //check current NodeID not in _return
+		  if (_return[i] == this->server_node_id){
+			  return;
+		  }
+	  }
+	  _return.push_back(server_node_id); 	//add my nodeID to return
+  }
 }
+
 
 void WatDHTServer::migrate_kv(std::map<std::string, std::string>& _return, const std::string& nid,
 		  std::string ip, int port)
@@ -145,59 +225,27 @@ void WatDHTServer::put(const std::string& key, const std::string& val, const int
 	}
 }
 
-void WatDHTServer::forward_join(std::vector<NodeID> & _return, const NodeID& nid, std::string ip, int port)
-{
-	boost::shared_ptr<TSocket> socket(new TSocket(ip, port));
-	boost::shared_ptr<TTransport> transport(new TBufferedTransport(socket));
-	boost::shared_ptr<TProtocol> protocol(new TBinaryProtocol(transport));
-	WatDHTClient client(protocol);
-	try {
-		transport->open();
-		std::string remote_str;
-		client.join(_return, nid);
-		transport->close();
-	} catch (TTransportException e) {
-		printf("Caught exception: %s\n", e.what());
-	}
-
-	_return.push_back(server_node_id); 	//add my nodeID to return
-}
-
 void WatDHTServer::find_closest(const std::string& key, NodeID& _dest)
 {
-	//** MISSING: check if any node in neighbour set is owner of key **//
+	//** TODO: check if any node in neighbour set is owner of key **//
 	//find node in neighbour set and routing table that is closest in distance to key
 	std::list<NodeID>::iterator it, closest;
 	WatID toFind, curr, temp, closestDist;
 	closestDist.copy_from(""); // initializing to a null WatID -- test correctness
 	toFind.copy_from(key);
 	pthread_rwlock_rdlock(&rt_mutex);
-	for (it=successors.begin(); it!=successors.end(); it++) {
-		curr.copy_from(it->ip);
-		temp = curr.distance(toFind);
-		if (temp < closestDist) {
-			closestDist = temp;
-			closest = it;
+
+	for (unsigned int i=0; i<pappa_list.size(); i++) {
+		for (it=pappa_list[i]->begin(); it!=pappa_list[i]->end(); it++) {
+			curr.copy_from(it->ip);
+			temp = curr.distance_cr(toFind);
+			if (temp < closestDist) {
+				closestDist = temp;
+				closest = it;
+			}
 		}
 	}
 
-	for (it=predecessors.begin(); it!=predecessors.end(); it++) {
-		curr.copy_from(it->ip);
-		temp = curr.distance(toFind);
-		if (temp < closestDist) {
-			closestDist = temp;
-			closest = it;
-		}
-	}
-
-	for (it=rtable.begin(); it!=rtable.end(); it++) {
-		curr.copy_from(it->ip);
-		temp = curr.distance(toFind);
-		if (temp < closestDist) {
-			closestDist = temp;
-			closest = it;
-		}
-	}
 	pthread_rwlock_unlock(&rt_mutex);
 
 	_dest = *closest;
@@ -205,10 +253,17 @@ void WatDHTServer::find_closest(const std::string& key, NodeID& _dest)
 
 bool WatDHTServer::isOwner(const std::string& key)
 {
-	WatID toFind, successor;
+	WatID toFind, closest;
 	toFind.copy_from(key);
-	successor.copy_from(successors.begin()->id);
-	return ( this->wat_id.distance(toFind) < this->wat_id.distance(successor) ) ? true : false;
+	if (!successors.empty()) {
+		closest.copy_from(successors.begin()->id);
+	}
+	else if (!predecessors.empty()) {
+		closest.copy_from(successors.begin()->id);
+	}
+	else { return true; } //TODO - look at routing table?
+
+	return ( this->wat_id.distance_cr(toFind) < this->wat_id.distance_cr(closest) ) ? true : false;
 }
 
 int WatDHTServer::wait() {
@@ -257,9 +312,11 @@ int main(int argc, char **argv) {
     // Create the DHT node with the given IP address and port.    
     WatDHTServer server(argv[1], argv[2], atoi(argv[3]));    
     // Join the DHT ring via the bootstrap node.  
-    if (argc >= 6 && server.test(argv[4], atoi(argv[5])) == -1) {
-        printf("Unable to connect to join network, exiting\n"); 
-        return -1;
+    //if (argc >= 6 && server.test(argv[4], atoi(argv[5])) == -1) {
+    std::vector<NodeID> _return;
+    std::string ip = "";
+    if (argc >= 6) {
+    	server.join(_return, server.get_NodeID() , (ip+=argv[4]), atoi(argv[5]) );
     }
 
 /*    // neighbour sets have been populated, call migrate_kv

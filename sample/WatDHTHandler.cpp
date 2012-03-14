@@ -69,16 +69,16 @@ void WatDHTHandler::put(const std::string& key,
 
 void WatDHTHandler::join(std::vector<NodeID> & _return, const NodeID& nid)
 {
-	if (server->isOwner(nid.id)) { // this is the predecessor of nid
+	//if (server->isOwner(nid.id)) { // this is the predecessor of nid
+	if ( true ) { // this is the predecessor of nid
 		// populate _return (ensure all neighbours are alive before attaching them)
 		_return.insert(_return.begin(), server->get_NodeID());
 		_return.insert(_return.end(), server->predecessors.begin(), server->predecessors.end());
 		_return.insert(_return.end(), server->successors.begin(), server->successors.end());
-		_return.insert(_return.end(), server->rtable.begin(), server->rtable.end());
 	} else {
 		NodeID _dest;
 		server->find_closest(nid.id, _dest);
-		server->forward_join(_return, nid, _dest.ip, _dest.port);
+		server->join(_return, nid, _dest.ip, _dest.port);
 	}
 	printf("join\n");
 }    
