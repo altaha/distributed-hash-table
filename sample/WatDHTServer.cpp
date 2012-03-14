@@ -30,7 +30,6 @@ void printList(std::list<NodeID>& in){
 		printf("NodeID port: %d\n", it->port);
 	}
 }
-
 void printVector(std::vector<NodeID>& in){
 	for( std::vector<NodeID>::iterator it=in.begin(); it!=in.end(); it++ ){
 		printf("NodeID port: %d\n", it->port);
@@ -41,7 +40,7 @@ bool compNodeCR (const NodeID& i,const NodeID& j, const WatID& reference)
 {
 	WatID k, l;
 	k.copy_from(i.id); l.copy_from(j.id);
-	return ( k.distance_cr(reference) < l.distance_cr(reference) );
+	return ( reference.distance_cr(k) < reference.distance_cr(l) );
 }
 
 void insSorted (std::list<NodeID>& insList, const NodeID& i, const WatID& reference)

@@ -70,12 +70,13 @@ void WatDHTHandler::put(const std::string& key,
 void WatDHTHandler::join(std::vector<NodeID> & _return, const NodeID& nid)
 {
 	//if (server->isOwner(nid.id)) { // this is the predecessor of nid
-	if ( true ) { // this is the predecessor of nid
+	if (true) { // this is the predecessor of nid
 		// populate _return (ensure all neighbours are alive before attaching them)
 		_return.insert(_return.begin(), server->get_NodeID());
 		pthread_rwlock_rdlock(&(server->rt_mutex));
 		_return.insert(_return.end(), server->predecessors.begin(), server->predecessors.end());
 		_return.insert(_return.end(), server->successors.begin(), server->successors.end());
+		server->update_connections(nid, false);
 		pthread_rwlock_unlock(&(server->rt_mutex));
 	} else {
 		NodeID _dest;
