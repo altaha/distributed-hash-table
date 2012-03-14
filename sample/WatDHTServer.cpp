@@ -24,19 +24,24 @@ using boost::shared_ptr;
 
 namespace WatDHT {
 
-/*bool compNodeID (const NodeID& i,const NodeID& j)
+bool compNodeCR (const NodeID& i,const NodeID& j, const WatID& reference)
 {
 	WatID k, l;
 	k.copy_from(i.id); l.copy_from(j.id);
-	return (k<l);
+	return ( k.distance_cr(reference) < l.distance_cr(reference) );
 }
 
-bool WatDHTServer::compDistCR (const NodeID& i,const NodeID& j)
+void insSorted (std::list<NodeID>& insList, const NodeID& i, const WatID& reference)
 {
-	WatID k, l;
-	k.copy_from(i.id); l.copy_from(j.id);
-	return ( this->wat_id.distance_cr(k) < this->wat_id.distance_cr(l) );
-}*/
+	std::list<NodeID>::iterator it = insList.begin();
+	while(it != insList.end()){
+		if ( compNodeCR (i, *it, reference) ){
+			insList.insert(it, i);
+			return;
+		}
+	}
+	insList.insert(it, i);
+}
 
 WatDHTServer::WatDHTServer(const char* id, 
                            const char* ip, 
@@ -95,6 +100,75 @@ int WatDHTServer::test(const char* ip, int port) {
   return 0;
 }
 
+void WatDHTServer::update_connections(std::vector<NodeID>& input, bool ping_nodes)
+{
+	//Create a sorted list based on distance_cr (use insertion sort)
+	std::list<NodeID> sorted;
+	std::list<NodeID>::iterator it;
+	for(uint i=0; i<input.size(); ++i)
+	{
+		for (it=sorted.begin(); it!=sorted.end(); it++) {
+			if( compNodeCR( input[i], (*it), this->wat_id ) ){
+				sorted.insert( it, input[i]);
+				break;
+			}
+		}
+		if (it == sorted.end()){
+			sorted.push_back( input[i] );
+		}
+	}
+	//make sure list entries are unique
+	sorted.unique();
+
+	//TODO:
+	if(ping_nodes){ //ping every entry in sorted to make sure they are alive
+	}
+
+	// Update neighbour lists first
+	pthread_rwlock_wrlock(&rt_mutex);
+	std::list<NodeID> stale_neighbours;
+	std::list<NodeID>::iterator suc_it = successors.begin() ,
+								pred_it= predecessors.begin();
+	uint i =0;
+	while(i<4 && !sorted.empty())
+	{
+		if(!(i&1)){ //even: compare begin of sorted with successors
+			if( compNodeCR( sorted.front(), *(suc_it), this->wat_id ) ){
+				successors.insert( suc_it,sorted.front() );
+				sorted.pop_front();
+				if( successors.size()>=2){
+					insSorted (sorted, successors.back(), this->wat_id);
+					sorted.unique();
+					successors.pop_back();
+				}
+			}
+			else{
+				suc_it++;
+			}
+		}else{ //odd: compare end of sorted with predecessors
+			if( compNodeCR( sorted.back(), *(pred_it), this->wat_id ) ){
+				predecessors.insert( pred_it,sorted.back() );
+				sorted.pop_back();
+				if( predecessors.size()>=2){
+					insSorted (sorted, predecessors.back(), this->wat_id);
+					sorted.unique();
+					predecessors.pop_back();
+				}
+			}
+			else{
+				pred_it++;
+			}
+		}
+		i++;
+	}
+
+	//HANDLE routing table updates
+	//TODO
+	if(!sorted.empty()){
+	}
+
+}
+
 // Join the DHT network and wait
 void WatDHTServer::join(std::vector<NodeID>& _return, const NodeID& nid, std::string ip, int port)
 {
@@ -123,54 +197,11 @@ void WatDHTServer::join(std::vector<NodeID>& _return, const NodeID& nid, std::st
 	  //**TODO** use return vector to populate neighbour set
 	  std::vector<NodeID>::iterator it;
 	  for (it=_return.begin(); it!=_return.end(); it++) {
-		  std::cout << "NodeID = " << it->ip << std::endl;
+		  std::cout << "Port number = " << it->port << std::endl;
 	  }
-
-
-
-	  //populate contacts
-	  /*
-	  std::sort(_return.begin(), _return.end(), compNodeID );
-	  //insertion sort by
-	  WatID temp, last_dist;
-	  uint i, j, k, l;
-	  j = k = l = _return.size();
-	  for(i=0; i<_return.size(); ++i) {
-		  temp.copy_from(_return[i].id);
-		  if(i==0){
-			  last_dist = wat_id.distance_cr(temp);
-		  }else{
-			  if( wat_id.distance_cr(temp) < last_dist ){
-				  break;
-			  }
-			  last_dist = wat_id.distance_cr(temp);
-		  }
-	  }
-	  successors.push_back(_return[--i]); //i is now first successor
-	  if(i+1<_return.size() || i-3>=0){
-		  if( i+1<_return.size() ){ j = i+1;}
-		  else { j = i-3; }
-		  successors.push_back(_return[j]);
-	  }
-	  if(i-1>=0 || _return.size()>i+2){
-		  if( i-1>=0 ){ k = i-1;}
-		  else { k = i+2; }
-		  predecessors.push_back(_return[k]);
-	  }
-	  if(i-2>=0 || _return.size()>i+3){
-		  if( i-2>=0 ){ l = i-2;}
-		  else { l = i+3; }
-		  predecessors.push_back(_return[l]);
-	  }*/
 
   }
   else{ //forward join
-	  for(uint i=0; i<_return.size(); i++){
-		  //check current NodeID not in _return
-		  if (_return[i] == this->server_node_id){
-			  return;
-		  }
-	  }
 	  _return.push_back(server_node_id); 	//add my nodeID to return
   }
 }

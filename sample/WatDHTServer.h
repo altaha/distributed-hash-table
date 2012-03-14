@@ -40,6 +40,9 @@ class WatDHTServer {
   void find_closest(const std::string& key, NodeID& _dest);
   bool isOwner(const std::string& key);
 
+  void update_connections(std::vector<NodeID>& input, bool ping_nodes);
+
+
   //RPC functions
   void get(std::string& _return, const std::string& key, std::string ip, int port);
   void put(const std::string& key, const std::string& val, const int32_t duration, std::string ip, int port);
