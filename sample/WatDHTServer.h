@@ -56,6 +56,11 @@ class WatDHTServer {
   void join(std::vector<NodeID>& _return, const NodeID& nid, std::string ip, int port);
   void migrate_kv(std::map<std::string, std::string>& _return, const std::string& nid,
 		  std::string ip, int port);
+  void maintain(std::vector<NodeID> & _return, const std::string& id, const NodeID& nid,
+		  std::string ip, int port);
+  void gossip_neighbours(std::vector<NodeID> & _return, const NodeID& nid,
+          const std::vector<NodeID> & neighbors, std::string ip, int port);
+  bool ping(std::string ip, int port);
   void closest_node_cr(NodeID& _return, const std::string& id, std::string ip, int port);
   void closest_node_ccr(NodeID& _return, const std::string& id, std::string ip, int port);
   //void forward_join(std::vector<NodeID> & _return, const NodeID& nid, std::string ip, int port);

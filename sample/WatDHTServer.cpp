@@ -308,6 +308,9 @@ void WatDHTServer::migrate_kv(std::map<std::string, std::string>& _return, const
 	} catch (TTransportException e) {
 		printf("Caught exception: %s\n", e.what());
 	}
+	pthread_rwlock_wrlock(&hash_mutex);
+	hash_table.insert(_return.begin(),_return.end());
+	pthread_rwlock_unlock(&hash_mutex);
 }
 
 void WatDHTServer::get(std::string& _return, const std::string& key, std::string ip, int port)
@@ -369,6 +372,67 @@ void WatDHTServer::find_closest(NodeID& _dest, const std::string& key, bool cw)
 	_dest = *closest;
 }
 
+void WatDHTServer::maintain(std::vector<NodeID> & _return, const std::string& id,
+                             const NodeID& nid, std::string ip, int port)
+{
+	boost::shared_ptr<TSocket> socket(new TSocket(ip, port));
+	boost::shared_ptr<TTransport> transport(new TBufferedTransport(socket));
+	boost::shared_ptr<TProtocol> protocol(new TBinaryProtocol(transport));
+	WatDHTClient client(protocol);
+	try {
+		transport->open();
+		std::string remote_str;
+		client.maintain(_return, id, nid);
+		transport->close();
+	} catch (TTransportException e) {
+		printf("Caught exception: %s\n", e.what());
+	}
+}
+
+void WatDHTServer::gossip_neighbours(std::vector<NodeID> & _return, const NodeID& nid,
+        const std::vector<NodeID> & neighbors, std::string ip, int port)
+{
+	boost::shared_ptr<TSocket> socket(new TSocket(ip, port));
+	boost::shared_ptr<TTransport> transport(new TBufferedTransport(socket));
+	boost::shared_ptr<TProtocol> protocol(new TBinaryProtocol(transport));
+	WatDHTClient client(protocol);
+	try {
+		transport->open();
+		std::string remote_str;
+		client.gossip_neighbors(_return, nid, neighbors);
+		transport->close();
+	} catch (TTransportException e) {
+		printf("Caught exception: %s\n", e.what());
+	}
+}
+
+bool WatDHTServer::ping(std::string ip, int port)
+{
+	boost::shared_ptr<TSocket> socket(new TSocket(ip, port));
+	boost::shared_ptr<TTransport> transport(new TBufferedTransport(socket));
+	boost::shared_ptr<TProtocol> protocol(new TBinaryProtocol(transport));
+	WatDHTClient client(protocol);
+	try {
+		transport->open();
+		std::string remote_str;
+		client.ping(remote_str);
+		transport->close();
+		// Create a WatID object from the return value.
+		WatID remote_id;
+		if (remote_id.copy_from(remote_str) == -1) {
+			printf("Received invalid ID\n");
+			return false;
+		} else {
+			printf("Received:\n");
+			remote_id.debug_md5();
+		}
+	} catch (TTransportException e) {
+		printf("Caught exception: %s\n", e.what());
+		return false;
+	}
+	return true;
+}
+
 void WatDHTServer::closest_node_cr(NodeID& _return, const std::string& id, std::string ip, int port)
 {
 	boost::shared_ptr<TSocket> socket(new TSocket(ip, port));
@@ -409,14 +473,19 @@ bool WatDHTServer::isOwner(const std::string& key)
 {
 	WatID toFind, closest;
 	toFind.copy_from(key);
+	pthread_rwlock_rdlock(&rt_mutex);
 	if (!successors.empty()) {
 		closest.copy_from(successors.begin()->id);
 	}
 	else if (!predecessors.empty()) {
-		closest.copy_from(successors.begin()->id);
+		closest.copy_from(predecessors.begin()->id);
 	}
-	else { return true; } //TODO - look at routing table?
+	else {
+		pthread_rwlock_unlock(&rt_mutex);
+		return true;
+	} //**TODO** - look at routing table?
 
+	pthread_rwlock_unlock(&rt_mutex);
 	return ( this->wat_id.distance_cr(toFind) < this->wat_id.distance_cr(closest) ) ? true : false;
 }
 
