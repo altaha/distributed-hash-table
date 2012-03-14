@@ -52,6 +52,7 @@ void insSorted (std::list<NodeID>& insList, const NodeID& i, const WatID& refere
 			insList.insert(it, i);
 			return;
 		}
+		it++;
 	}
 	insList.insert(it, i);
 }
@@ -141,22 +142,32 @@ void WatDHTServer::update_connections(const std::vector<NodeID>& input, bool pin
 	//make sure list entries are unique
 	sorted.unique();
 
+	//Remove instance of this->wat_id in input
+	sorted.remove(this->server_node_id);
+
 	printf("Printing what has been received...\n");
 	printList(sorted);
 
 	do_update(sorted, ping_nodes);
 }
 
-void WatDHTServer::do_update(std::list<NodeID>& sorted, bool ping_nodes){
-
-	//TODO:
+void WatDHTServer::do_update(std::list<NodeID>& sorted, bool ping_nodes)
+{
+	std::list<NodeID>::iterator it;
 	if(ping_nodes){ //ping every entry in sorted to make sure they are alive
+		it = sorted.begin();
+		while( it!=sorted.end() ){
+			if(!this->ping(it->ip,it->port)){
+				it = sorted.erase(it);
+			}else{
+				it++;
+			}
+		}
 	}
 
 	pthread_rwlock_wrlock(&rt_mutex);
 
 	//Make sure no duplicates between sorted and (predecessors, successors, and rtable)
-	std::list<NodeID>::iterator it;
 	for (uint i=0; i<pappa_list.size(); i++) {
 		if(i<2){ //successors and predecessors
 			for (it=pappa_list[i]->begin(); it!=pappa_list[i]->end(); it++)
@@ -173,9 +184,8 @@ void WatDHTServer::do_update(std::list<NodeID>& sorted, bool ping_nodes){
 	}
 
 	// Update neighbour lists first
-	std::list<NodeID>::iterator suc_it = successors.begin() ,
-								pred_it= predecessors.begin();
-
+	std::list<NodeID>::iterator suc_it = successors.begin();
+	std::list<NodeID>::iterator pred_it= predecessors.begin();
 	uint i =0;
 	while(i<4 && !sorted.empty())
 	{
@@ -183,7 +193,7 @@ void WatDHTServer::do_update(std::list<NodeID>& sorted, bool ping_nodes){
 			if( successors.empty() || compNodeCR( sorted.front(), *(suc_it), this->wat_id ) ){
 				successors.insert( suc_it,sorted.front() );
 				sorted.pop_front();
-				if( successors.size()>=2){
+				if( successors.size()>2){
 					insSorted (sorted, successors.back(), this->wat_id);
 					sorted.unique();
 					successors.pop_back();
@@ -196,7 +206,7 @@ void WatDHTServer::do_update(std::list<NodeID>& sorted, bool ping_nodes){
 			if( predecessors.empty() || compNodeCR( sorted.back(), *(pred_it), this->wat_id ) ){
 				predecessors.insert( pred_it,sorted.back() );
 				sorted.pop_back();
-				if( predecessors.size()>=2){
+				if( predecessors.size()>2){
 					insSorted (sorted, predecessors.back(), this->wat_id);
 					sorted.unique();
 					predecessors.pop_back();
@@ -210,16 +220,32 @@ void WatDHTServer::do_update(std::list<NodeID>& sorted, bool ping_nodes){
 	}
 
 	//HANDLE routing table updates
-	//TODO
 	rt_buckets=0;
-	sorted.insert(sorted.end(),rtable.begin(),rtable.end());
-	WatID bucket;
-	for(it=sorted.begin(); it!= sorted.end(); it++){
+	if(!sorted.empty()){
+		rtable.insert(rtable.end(),sorted.begin(),sorted.end());
+	}
+	it=rtable.begin();
+	while( it!= rtable.end() ){
+		WatID bucket;
 		bucket.copy_from(it->id);
 		int rc = this->wat_id.hmatch_bin(bucket,1);
-		if(rc==-1 && (this->rt_buckets & BUCKET_1) ){
+		if(rc==-1 && !(this->rt_buckets & BUCKET_1) ){ //different MSB
 			this->rt_buckets |= BUCKET_1;
 		}
+		else if( rc==0 && !(this->rt_buckets & BUCKET_2) ){ //different 2nd MSB
+			this->rt_buckets |= BUCKET_2;
+		}
+		else if( rc==1 && !(this->rt_buckets & BUCKET_3) ){ //different 3rd MSB
+			this->rt_buckets |= BUCKET_3;
+		}
+		else if( rc==2 && !(this->rt_buckets & BUCKET_4) ){ //different 4th MSB
+			this->rt_buckets |= BUCKET_4;
+		}
+		else{
+			it = rtable.erase(it); //advances it to next
+			continue;
+		}
+		it++;
 	}
 
 	pthread_rwlock_unlock(&rt_mutex);
