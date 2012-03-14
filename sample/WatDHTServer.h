@@ -22,6 +22,8 @@ class WatDHTServer {
   std::map<std::string,std::string> hash_table;
   pthread_rwlock_t rt_mutex, hash_mutex;
 
+  int  test(const char* ip, int port);
+
   // Block and wait until the server shutdowns.
   int wait();
   // Set the RPC server once it is created in a child thread.
@@ -39,7 +41,9 @@ class WatDHTServer {
   //RPC functions
   void get(std::string& _return, const std::string& key, std::string ip, int port);
   void put(const std::string& key, const std::string& val, const int32_t duration, std::string ip, int port);
-  int  join(const char* ip, int port);
+  void join(std::vector<NodeID>& _return, const NodeID& nid, std::string ip, int port);
+  void migrate_kv(std::map<std::string, std::string>& _return, const std::string& nid,
+		  std::string ip, int port);
   void forward_join(std::vector<NodeID> & _return, const NodeID& nid, std::string ip, int port);
 
  private:

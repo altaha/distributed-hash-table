@@ -99,7 +99,21 @@ void WatDHTHandler::maintain(std::vector<NodeID> & _return,
 
 void WatDHTHandler::migrate_kv(std::map<std::string, std::string> & _return, 
                                const std::string& nid) {
-  // Your implementation goes here
+	if (server->get_state()==MIGRATE_KV) {
+		WatDHTException e;
+		e.__set_error_code(WatDHTErrorType::OL_MIGRATION_IN_PROGRESS);
+		e.__set_error_message("In the middle of a migration.");
+		throw e;		return;
+	}
+
+	if (server->successors.front().id==nid) { // nid is my successor
+		//**MISSING** return all values in hash_Table >= nid
+
+	} else {
+	    NodeID it = server->predecessors.front();
+		server->migrate_kv(_return, nid, it.ip, it.port);
+	}
+	printf("join\n");
   printf("migrate_kv\n");
 }
 

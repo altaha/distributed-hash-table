@@ -3,6 +3,7 @@
 #include "WatID.h"
 #include "WatDHTState.h"
 #include "WatDHTHandler.h"
+#include <iostream>
 #include <pthread.h>
 #include <protocol/TBinaryProtocol.h>
 #include <server/TSimpleServer.h>
@@ -47,7 +48,7 @@ WatDHTServer::~WatDHTServer() {
 }
 
 // Join the DHT network and wait
-int WatDHTServer::join(const char* ip, int port) {
+int WatDHTServer::test(const char* ip, int port) {
   wat_state.wait_ge(WatDHT::SERVER_CREATED);
   
   // The following is an example of sending a PING. This is normally not
@@ -73,6 +74,43 @@ int WatDHTServer::join(const char* ip, int port) {
     printf("Caught exception: %s\n", e.what());
   } 
   return 0;
+}
+
+// Join the DHT network and wait
+void WatDHTServer::join(std::vector<NodeID>& _return, const NodeID& nid, std::string ip, int port) {
+  wat_state.wait_ge(WatDHT::SERVER_CREATED);
+
+  boost::shared_ptr<TSocket> socket(new TSocket(ip, port));
+  boost::shared_ptr<TTransport> transport(new TBufferedTransport(socket));
+  boost::shared_ptr<TProtocol> protocol(new TBinaryProtocol(transport));
+  WatDHTClient client(protocol);
+  try {
+    transport->open();
+    std::string remote_str;
+    client.join(_return, nid);
+    transport->close();
+  } catch (TTransportException e) {
+    printf("Caught exception: %s\n", e.what());
+  }
+  //**MISSING** use return vector to populate neighbour set
+  this->wat_state.change_state(MIGRATE_KV);
+}
+
+void WatDHTServer::migrate_kv(std::map<std::string, std::string>& _return, const std::string& nid,
+		  std::string ip, int port)
+{
+	boost::shared_ptr<TSocket> socket(new TSocket(ip, port));
+	boost::shared_ptr<TTransport> transport(new TBufferedTransport(socket));
+	boost::shared_ptr<TProtocol> protocol(new TBinaryProtocol(transport));
+	WatDHTClient client(protocol);
+	try {
+		transport->open();
+		std::string remote_str;
+		client.migrate_kv(_return, nid);
+		transport->close();
+	} catch (TTransportException e) {
+		printf("Caught exception: %s\n", e.what());
+	}
 }
 
 void WatDHTServer::get(std::string& _return, const std::string& key, std::string ip, int port)
@@ -170,7 +208,7 @@ bool WatDHTServer::isOwner(const std::string& key)
 	WatID toFind, successor;
 	toFind.copy_from(key);
 	successor.copy_from(successors.begin()->id);
-	return (toFind < successor  &&  get_id() < toFind)?true:false;
+	return ( this->wat_id.distance(toFind) < this->wat_id.distance(successor) ) ? true : false;
 }
 
 int WatDHTServer::wait() {
@@ -219,10 +257,20 @@ int main(int argc, char **argv) {
     // Create the DHT node with the given IP address and port.    
     WatDHTServer server(argv[1], argv[2], atoi(argv[3]));    
     // Join the DHT ring via the bootstrap node.  
-    if (argc >= 6 && server.join(argv[4], atoi(argv[5])) == -1) {
+    if (argc >= 6 && server.test(argv[4], atoi(argv[5])) == -1) {
         printf("Unable to connect to join network, exiting\n"); 
         return -1;
     }
+
+/*    // neighbour sets have been populated, call migrate_kv
+    std::map<std::string, std::string> _return;
+    NodeID it = server.predecessors.front();
+    try {
+    	server.migrate_kv(_return, server.get_NodeID().id, it.ip, it.port);
+    } catch (WatDHTException e) {
+		std::cout << "Caught exception: " << e.error_message << std::endl;
+	}
+*/
     server.wait(); // Wait until server shutdown.
   } catch (int rc) {
     printf("Caught exception %d, exiting\n", rc);
