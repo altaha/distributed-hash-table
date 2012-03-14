@@ -40,8 +40,8 @@ class WatDHTServer {
   void find_closest(NodeID& _dest, const std::string& key, bool cw);
   bool isOwner(const std::string& key);
 
-  void update_connections(std::vector<NodeID>& input, bool ping_nodes);
-
+  void update_connections(const std::vector<NodeID>& input, bool ping_nodes);
+  void update_connections(const NodeID& input, bool ping_nodes);
 
   //RPC functions
   void get(std::string& _return, const std::string& key, std::string ip, int port);
@@ -61,6 +61,9 @@ class WatDHTServer {
   WatDHTState wat_state;    // Tracks the current state of the node.
   static const int num_rpc_threads = 64;
   static void* start_rpc_server(void* param);
+
+  void do_update(std::list<NodeID>& sorted, bool ping_nodes);
+
 };
 } // namespace WatDHT
 

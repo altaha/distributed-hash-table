@@ -25,6 +25,18 @@ using boost::shared_ptr;
 
 namespace WatDHT {
 
+void printList(std::list<NodeID>& in){
+	for( std::list<NodeID>::iterator it=in.begin(); it!=in.end(); it++ ){
+		printf("NodeID port: %d\n", it->port);
+	}
+}
+
+void printVector(std::vector<NodeID>& in){
+	for( std::vector<NodeID>::iterator it=in.begin(); it!=in.end(); it++ ){
+		printf("NodeID port: %d\n", it->port);
+	}
+}
+
 bool compNodeCR (const NodeID& i,const NodeID& j, const WatID& reference)
 {
 	WatID k, l;
@@ -101,7 +113,14 @@ int WatDHTServer::test(const char* ip, int port) {
   return 0;
 }
 
-void WatDHTServer::update_connections(std::vector<NodeID>& input, bool ping_nodes)
+void WatDHTServer::update_connections(const NodeID& input, bool ping_nodes)
+{
+	std::list<NodeID> sorted;
+	sorted.push_back(input);
+	do_update(sorted, ping_nodes);
+}
+
+void WatDHTServer::update_connections(const std::vector<NodeID>& input, bool ping_nodes)
 {
 	//Create a sorted list based on distance_cr (use insertion sort)
 	std::list<NodeID> sorted;
@@ -121,20 +140,33 @@ void WatDHTServer::update_connections(std::vector<NodeID>& input, bool ping_node
 	//make sure list entries are unique
 	sorted.unique();
 
+	printf("Printing what has been received...\n");
+	printList(sorted);
+
+	do_update(sorted, ping_nodes);
+}
+
+void WatDHTServer::do_update(std::list<NodeID>& sorted, bool ping_nodes){
+
 	//TODO:
 	if(ping_nodes){ //ping every entry in sorted to make sure they are alive
 	}
 
+	//Make sure no duplicates between sorted and (predecessors, successors, and rtable)
+	for (uint i=0; i<pappa_list.size(); i++) {
+	}
+
+
 	// Update neighbour lists first
 	pthread_rwlock_wrlock(&rt_mutex);
-	std::list<NodeID> stale_neighbours;
 	std::list<NodeID>::iterator suc_it = successors.begin() ,
 								pred_it= predecessors.begin();
+
 	uint i =0;
 	while(i<4 && !sorted.empty())
 	{
 		if(!(i&1)){ //even: compare begin of sorted with successors
-			if( compNodeCR( sorted.front(), *(suc_it), this->wat_id ) ){
+			if( successors.empty() || compNodeCR( sorted.front(), *(suc_it), this->wat_id ) ){
 				successors.insert( suc_it,sorted.front() );
 				sorted.pop_front();
 				if( successors.size()>=2){
@@ -147,7 +179,7 @@ void WatDHTServer::update_connections(std::vector<NodeID>& input, bool ping_node
 				suc_it++;
 			}
 		}else{ //odd: compare end of sorted with predecessors
-			if( compNodeCR( sorted.back(), *(pred_it), this->wat_id ) ){
+			if( predecessors.empty() || compNodeCR( sorted.back(), *(pred_it), this->wat_id ) ){
 				predecessors.insert( pred_it,sorted.back() );
 				sorted.pop_back();
 				if( predecessors.size()>=2){
@@ -168,6 +200,14 @@ void WatDHTServer::update_connections(std::vector<NodeID>& input, bool ping_node
 	if(!sorted.empty()){
 	}
 
+	pthread_rwlock_unlock(&rt_mutex);
+
+	printf("Predecessors...\n");
+	printList(this->predecessors);
+	printf("Successors...\n");
+	printList(this->successors);
+	printf("Routing Table...\n");
+	printList(this->rtable);
 }
 
 // Join the DHT network and wait
@@ -192,6 +232,10 @@ void WatDHTServer::join(std::vector<NodeID>& _return, const NodeID& nid, std::st
 
   } catch (TTransportException e) {
 	printf("Caught exception: %s\n", e.what());
+	if( e.getType() == TTransportException::NOT_OPEN ){
+		//Failed communication, probably means node is dead
+	}
+	return;
   }
   if(nid == this->server_node_id) //join initiator
   {
@@ -200,6 +244,9 @@ void WatDHTServer::join(std::vector<NodeID>& _return, const NodeID& nid, std::st
 	  for (it=_return.begin(); it!=_return.end(); it++) {
 		  std::cout << "Port number = " << it->port << std::endl;
 	  }
+
+	  update_connections(_return, false);
+
 
   }
   else{ //forward join
@@ -283,7 +330,7 @@ void WatDHTServer::find_closest(NodeID& _dest, const std::string& key, bool cw)
 	toFind.copy_from(key);
 	pthread_rwlock_rdlock(&rt_mutex);
 
-	for (unsigned int i=0; i<pappa_list.size(); i++) {
+	for (uint i=0; i<pappa_list.size(); i++) {
 		for (it=pappa_list[i]->begin(); it!=pappa_list[i]->end(); it++) {
 			curr.copy_from(it->ip);
 			 if (cw) { temp = curr.distance_cr(toFind); }
