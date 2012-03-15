@@ -55,8 +55,13 @@ void WatDHTHandler::get(std::string& _return, const std::string& key)
 	}
 	else {
 		NodeID _dest;
-		server->find_closest(_dest, key, true);
-		server->get(_return, key, _dest.ip, _dest.port);
+		if (!server->find_closest(_dest, key, true)) { // I don't have any nodes to return
+			return;
+		}
+		if (!server->get(_return, key, _dest.ip, _dest.port)) {
+			server->erase_node(_dest);	//comm prob with _dest, erase it and find another
+			get(_return, key);
+		}
 	}
 
 	printf("get_handler done\n");
@@ -86,8 +91,13 @@ void WatDHTHandler::put(const std::string& key,
 	}
 	else {
 		NodeID _dest;
-		server->find_closest(_dest, key, true);
-		server->put(key, val, duration, _dest.ip, _dest.port);
+		if (!server->find_closest(_dest, key, true)) { // I don't have any nodes to return
+			return;
+		}
+		if (!server->put(key, val, duration, _dest.ip, _dest.port)){
+			server->erase_node(_dest);
+			put(key, val, duration);
+		}
 	}
 	printf("put_handler done\n");
 }
@@ -104,8 +114,13 @@ void WatDHTHandler::join(std::vector<NodeID> & _return, const NodeID& nid)
 		server->update_connections(nid, false);
 	} else {
 		NodeID _dest;
-		server->find_closest(_dest, nid.id, true);
-		server->join(_return, nid, _dest.ip, _dest.port);
+		if (!server->find_closest(_dest, nid.id, true)) {
+			return;
+		}
+		if (!server->join(_return, nid, _dest.ip, _dest.port)) {
+			server->erase_node(_dest);
+			join(_return, nid);
+		}
 	}
 	printf("join_handler done\n");
 }    
@@ -130,8 +145,13 @@ void WatDHTHandler::maintain(std::vector<NodeID> & _return,
 		pthread_rwlock_unlock(&(server->rt_mutex));
 	} else {
 		NodeID _dest;
-		server->find_closest(_dest, id, true);
-		server->maintain(_return, id, nid, _dest.ip, _dest.port);
+		if (!server->find_closest(_dest, id, true)) { // I don't have any nodes to return
+			return;
+		}
+		if (!server->maintain(_return, id, nid, _dest.ip, _dest.port)) {
+			server->erase_node(_dest);
+			maintain(_return, id, nid);
+		}
 	}
 	server->update_connections(nid, false);
     printf("maintain_handler end\n");

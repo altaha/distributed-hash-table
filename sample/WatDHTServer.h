@@ -58,12 +58,12 @@ class WatDHTServer {
   void update_connections(const NodeID& input, bool ping_nodes);
 
   //RPC functions
-  void get(std::string& _return, const std::string& key, std::string ip, int port);
-  void put(const std::string& key, const std::string& val, const int32_t duration, std::string ip, int port);
-  void join(std::vector<NodeID>& _return, const NodeID& nid, std::string ip, int port);
+  bool get(std::string& _return, const std::string& key, std::string ip, int port);
+  bool put(const std::string& key, const std::string& val, const int32_t duration, std::string ip, int port);
+  bool join(std::vector<NodeID>& _return, const NodeID& nid, std::string ip, int port);
   void migrate_kv(std::map<std::string, std::string>& _return, const std::string& nid,
 		  std::string ip, int port);
-  void maintain(std::vector<NodeID> & _return, const std::string& id, const NodeID& nid,
+  bool maintain(std::vector<NodeID> & _return, const std::string& id, const NodeID& nid,
 		  std::string ip, int port);
   void gossip_neighbors(std::vector<NodeID> & _return, const NodeID& nid,
           const std::vector<NodeID> & neighbors, std::string ip, int port);
