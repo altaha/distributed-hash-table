@@ -23,10 +23,13 @@ class WatDHTServer {
   WatDHTServer(const char* id, const char* ip, int port) throw (int);  
   ~WatDHTServer();
   
+  WatDHTState wat_state;    // Tracks the current state of the node.
+
   std::vector< std::list<NodeID>* > pappa_list;
   std::list<NodeID> predecessors, successors, rtable;
 
-  std::map<std::string,std::string> hash_table, stale_table;
+  std::map<std::string,std::string> hash_table;
+  std::map<std::string,long> stale_table;
   pthread_rwlock_t rt_mutex, hash_mutex;
 
   int  test(const char* ip, int port);
@@ -73,13 +76,12 @@ class WatDHTServer {
   NodeID server_node_id;    // Include the ID, IP address and port.
   apache::thrift::server::TThreadedServer* rpc_server;
   pthread_t rpc_thread;
-  WatDHTState wat_state;    // Tracks the current state of the node.
   static const int num_rpc_threads = 64;
   static void* start_rpc_server(void* param);
 
   void do_update(std::list<NodeID>& sorted, bool ping_nodes);
 
-  ulong start_time;
+  long start_time;
 
 };
 } // namespace WatDHT

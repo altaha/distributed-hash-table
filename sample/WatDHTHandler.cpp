@@ -21,18 +21,35 @@ WatDHTHandler::WatDHTHandler(WatDHTServer* dht_server) : server(dht_server) {
 
 WatDHTHandler::~WatDHTHandler() {}
 
-void WatDHTHandler::get(std::string& _return, const std::string& key) {
-	while (server->get_state()==MIGRATE_KV);
+void WatDHTHandler::get(std::string& _return, const std::string& key)
+{
+	this->server->wat_state.wait_ge(NODE_READY);
 
 	if (server->isOwner(key)) {
-		std::map<std::string,std::string>::iterator it = server->hash_table.find(key);
-		if (it == server->hash_table.end()) {
+		pthread_rwlock_rdlock(&(server->rt_mutex));
+		std::map<std::string,long>::iterator it1 = server->stale_table.find(key);
+		pthread_rwlock_unlock(&(server->rt_mutex));
+		if(it1!= server->stale_table.end()){
+			//lazy delete expired keys
+			if( time(NULL) > it1->second ){
+				pthread_rwlock_wrlock(&(server->rt_mutex));
+				server->hash_table.erase(key);
+				server->stale_table.erase(key);
+				pthread_rwlock_unlock(&(server->rt_mutex));
+			}
+		}
+		pthread_rwlock_rdlock(&(server->rt_mutex));
+		std::map<std::string,std::string>::iterator it2 = server->hash_table.find(key);
+		pthread_rwlock_unlock(&(server->rt_mutex));
+		if (it2 == server->hash_table.end()) {
 			WatDHTException e;
 			e.__set_error_code(WatDHTErrorType::KEY_NOT_FOUND);
 			e.__set_error_message("Key not found");
 			throw e;
 		}
-		else { _return = it->second; }
+		else {
+			_return = it2->second;
+		}
 	}
 	else {
 		NodeID _dest;
@@ -45,7 +62,7 @@ void WatDHTHandler::get(std::string& _return, const std::string& key) {
 void WatDHTHandler::put(const std::string& key,
                         const std::string& val, 
                         const int32_t duration) {
-	while (server->get_state()==MIGRATE_KV);
+	this->server->wat_state.wait_ge(NODE_READY);
 
 	if (server->isOwner(key)) {
 		pthread_rwlock_wrlock(&(server->rt_mutex));

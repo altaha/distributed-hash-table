@@ -6,7 +6,7 @@
 namespace WatDHT {
 
 // Add more states as needed.
-enum State {INIT, SERVER_CREATED, MIGRATE_KV};
+enum State {INIT, SERVER_CREATED, MIGRATE_KV, NODE_READY};
 
 class WatDHTState {
  public:

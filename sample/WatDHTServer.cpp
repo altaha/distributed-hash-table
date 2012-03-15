@@ -683,6 +683,7 @@ int main(int argc, char **argv) {
 		// Initialization Routine
 		NodeID it = server.predecessors.front();
 		server.migrate_kv(server.hash_table, server.get_NodeID().id, it.ip, it.port);
+		this->wat_state.change_state(NODE_READY);
 		server.run_gossip_neighbors();
 		server.run_maintain();
 
@@ -693,8 +694,8 @@ int main(int argc, char **argv) {
 				sleep(gossip_period);
 			}
 			server.run_maintain();
-		}
-*/		server.wait(); // Wait until server shutdown.
+		}*/
+		server.wait(); // Wait until server shutdown.
 	} catch (int rc) {
 		printf("Caught exception %d, exiting\n", rc);
 		return -1;
