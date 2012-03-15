@@ -640,15 +640,22 @@ int main(int argc, char **argv) {
 			server.wat_state.change_state(NODE_READY);
 		}
 
-		// maintain period must be integer multiple of gossip period
-		int gossip_period = 1, gossip_maintain_ratio = 3;
+		// set periods for maintain and gossip independently
+		int gossip_period = 1, maintain_period = 3;
+		int gossip_elapsed =0, maintain_elapsed =0;
 		// Regular Maintenance Schedule
-		while (true) {
-			for (int i=0; i<gossip_maintain_ratio; i++) {
-				sleep(gossip_period);
+		while(true){
+			sleep(1);
+			gossip_elapsed++;
+			maintain_elapsed++;
+			if(gossip_elapsed==gossip_period){
 				server.run_gossip_neighbors();
+				gossip_elapsed = 0;
 			}
-			server.run_maintain();
+			if(maintain_elapsed==maintain_period){
+				server.run_maintain();
+				maintain_elapsed = 0;
+			}
 		}
 		server.wait(); // Wait until server shutdown.
 	} catch (int rc) {
