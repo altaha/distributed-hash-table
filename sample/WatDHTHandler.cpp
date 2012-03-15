@@ -26,21 +26,21 @@ void WatDHTHandler::get(std::string& _return, const std::string& key)
 	this->server->wat_state.wait_ge(NODE_READY);
 
 	if (server->isOwner(key)) {
-		pthread_rwlock_rdlock(&(server->rt_mutex));
+		pthread_rwlock_rdlock(&(server->hash_mutex));
 		std::map<std::string,long>::iterator it1 = server->stale_table.find(key);
-		pthread_rwlock_unlock(&(server->rt_mutex));
+		pthread_rwlock_unlock(&(server->hash_mutex));
 		if(it1!= server->stale_table.end()){
 			//lazy delete expired keys
 			if( time(NULL) > it1->second ){
-				pthread_rwlock_wrlock(&(server->rt_mutex));
+				pthread_rwlock_wrlock(&(server->hash_mutex));
 				server->hash_table.erase(key);
 				server->stale_table.erase(key);
-				pthread_rwlock_unlock(&(server->rt_mutex));
+				pthread_rwlock_unlock(&(server->hash_mutex));
 			}
 		}
-		pthread_rwlock_rdlock(&(server->rt_mutex));
+		pthread_rwlock_rdlock(&(server->hash_mutex));
 		std::map<std::string,std::string>::iterator it2 = server->hash_table.find(key);
-		pthread_rwlock_unlock(&(server->rt_mutex));
+		pthread_rwlock_unlock(&(server->hash_mutex));
 		if (it2 == server->hash_table.end()) {
 			WatDHTException e;
 			e.__set_error_code(WatDHTErrorType::KEY_NOT_FOUND);
@@ -66,15 +66,18 @@ void WatDHTHandler::put(const std::string& key,
 
 	if (server->isOwner(key)) {
 		pthread_rwlock_wrlock(&(server->hash_mutex));
-		if (duration==0) { server->hash_table.erase(key); }
+		if (duration==0) {
+			server->hash_table.erase(key);
+			server->stale_table.erase(key);
+		}
 		else {
 			server->hash_table.insert(std::pair<std::string,std::string>(key,val));
+			if (duration>0) {
+				//add to Remove hash map
+				server->stale_table.insert(std::pair<std::string,long>(key, time(NULL)+duration ));
+			}
 		}
 		pthread_rwlock_unlock(&(server->hash_mutex));
-
-		if (duration>0) {
-			//add to toRemove queue
-		}
 	}
 	else {
 		NodeID _dest;
@@ -87,8 +90,7 @@ void WatDHTHandler::put(const std::string& key,
 void WatDHTHandler::join(std::vector<NodeID> & _return, const NodeID& nid)
 {
 	//if (server->isOwner(nid.id)) { // this is the predecessor of nid
-	if (true) { // this is the predecessor of nid
-		// populate _return (ensure all neighbours are alive before attaching them)
+	if ( server->isOwner(nid.id) ) { // this is the predecessor of nid
 		_return.insert(_return.begin(), server->get_NodeID());
 		pthread_rwlock_rdlock(&(server->rt_mutex));
 		_return.insert(_return.end(), server->predecessors.begin(), server->predecessors.end());

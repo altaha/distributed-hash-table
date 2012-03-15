@@ -410,15 +410,17 @@ void WatDHTServer::join(std::vector<NodeID>& _return, const NodeID& nid, std::st
 	}
 	if(nid == this->server_node_id) //join initiator
 	{
+		//use return vector to populate neighbour set
 		std::vector<NodeID>::iterator it;
 		for (it=_return.begin(); it!=_return.end(); it++) {
-			std::cout << "Port number = " << it->port << std::endl;
+			std::cout << "Port number = " << it->port << "\t";
 		}
+		std::cout<< std::endl;
 
-		update_connections(_return, false);
-
+		update_connections(_return, true);
 	}
 	else { //forward join
+		update_connections(nid, false);
 		_return.push_back(server_node_id); 	//add my nodeID to return
 	}
 }
