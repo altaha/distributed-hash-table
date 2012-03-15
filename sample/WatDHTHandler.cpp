@@ -168,7 +168,7 @@ void WatDHTHandler::gossip_neighbors(std::vector<NodeID> & _return,
 	pthread_rwlock_unlock(&(server->rt_mutex));
 
 	std::vector<NodeID> neighbors_copy;
-	neighbors_copy.insert(neighbors_copy.begin(), neighbors.begin(), neighbors.end());
+	neighbors_copy.insert(neighbors_copy.end(), neighbors.begin(), neighbors.end());
 	neighbors_copy.push_back(nid);
 	server->update_connections(neighbors_copy, true);
 	printf("gossip_neighbors\n");

@@ -137,7 +137,7 @@ void WatDHTServer::run_maintain()
 	NodeID _dest;
 	WatID _key;
 
-	if(successors.empty() || predecessors.empty() || rtable.empty()){
+	if(successors.empty() && predecessors.empty() && rtable.empty()){
 		return;
 	}
 
@@ -631,8 +631,10 @@ int main(int argc, char **argv) {
 		std::string ip = "";
 		if (argc >= 6) {
 			server.join(_return, server.get_NodeID(), (ip+=argv[4]), atoi(argv[5]));
-			// Initialization Routine
-			NodeID it = server.predecessors.front();
+			// Initialization Routines
+			NodeID it;
+			//TODO: should check that find closest doesn't return invalid
+			server.find_closest(it, server.get_NodeID().id, true);
 			server.migrate_kv(server.hash_table, server.get_NodeID().id, it.ip, it.port);
 			server.run_gossip_neighbors();
 			server.run_maintain();
@@ -641,7 +643,7 @@ int main(int argc, char **argv) {
 		}
 
 		// set periods for maintain and gossip independently
-		int gossip_period = 1, maintain_period = 3;
+		int gossip_period = 1000, maintain_period = 3000;
 		int gossip_elapsed =0, maintain_elapsed =0;
 		// Regular Maintenance Schedule
 		while(true){
