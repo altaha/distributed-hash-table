@@ -28,12 +28,14 @@ namespace WatDHT {
 
 void printList(std::list<NodeID>& in){
 	for( std::list<NodeID>::iterator it=in.begin(); it!=in.end(); it++ ){
-		printf("NodeID port: %d\n", it->port);
+		printf( "NodeID port: %d\t", it->port);
+		printf("\n");
 	}
 }
 void printVector(std::vector<NodeID>& in){
 	for( std::vector<NodeID>::iterator it=in.begin(); it!=in.end(); it++ ){
-		printf("NodeID port: %d\n", it->port);
+		printf( "NodeID port: %d\t", it->port);
+		printf("\n");
 	}
 }
 
@@ -158,25 +160,38 @@ void WatDHTServer::run_maintain()
 	NodeID _dest;
 	WatID _key;
 
-	if(successors.empty() && predecessors.empty() && rtable.empty()){
+	pthread_rwlock_rdlock(&rt_mutex);
+	int size = successors.size() + predecessors.size()+ rtable.size();
+	pthread_rwlock_unlock(&rt_mutex);
+
+	if(size==0){
 		return;
 	}
+	std::string lastFound = "";
 
 	std::vector<NodeID> _return;
 	for (i=0; i<4; i++){
-		if ( find_bucket(_dest, i) ) //node existed in routing table but has died since last check
+		if ( find_bucket(_dest, i) ) //node existed in routing table
 		{
-			if (!ping(_dest.ip, _dest.port)) {
+			if (!ping(_dest.ip, _dest.port)) {// but has died since last check
 				erase_node(_dest);
 				genWatID(_key,i);
-				find_closest(_dest, _key.to_string(), true);
-				maintain(_return, _key.to_string(), this->server_node_id, _dest.ip, _dest.port);
+				if( find_closest(_dest, _key.to_string(), true) ){
+					if(_dest.id != lastFound){
+						lastFound = _dest.id;
+						maintain(_return, _key.to_string(), this->server_node_id, _dest.ip, _dest.port);
+					}
+				}
 			}
 		}
 		else { // no node in routing table for bucket
 			genWatID(_key,i);
-			find_closest(_dest, _key.to_string(), true);
-			maintain(_return, _key.to_string(), this->server_node_id, _dest.ip, _dest.port);
+			if( find_closest(_dest, _key.to_string(), true) ){
+				if(_dest.id != lastFound){
+					lastFound = _dest.id;
+					maintain(_return, _key.to_string(), this->server_node_id, _dest.ip, _dest.port);
+				}
+			}
 		}
 	}
 }
@@ -216,7 +231,10 @@ void WatDHTServer::update_connections(const NodeID& input, bool ping_nodes)
 {
 	std::list<NodeID> sorted;
 	sorted.push_back(input);
-	do_update(sorted, ping_nodes);
+	sorted.remove(this->server_node_id);
+	if(!sorted.empty()){
+		do_update(sorted, ping_nodes);
+	}
 }
 
 void WatDHTServer::update_connections(const std::vector<NodeID>& input, bool ping_nodes)
@@ -245,7 +263,9 @@ void WatDHTServer::update_connections(const std::vector<NodeID>& input, bool pin
 	printf("Printing what has been received...\n");
 	printList(sorted);
 
-	do_update(sorted, ping_nodes);
+	if(!sorted.empty()){
+		do_update(sorted, ping_nodes);
+	}
 }
 
 void WatDHTServer::do_update(std::list<NodeID>& sorted, bool ping_nodes)
@@ -329,6 +349,8 @@ void WatDHTServer::join(std::vector<NodeID>& _return, const NodeID& nid, std::st
 {
 	wat_state.wait_ge(WatDHT::SERVER_CREATED);
 
+	printf("Client join\n");
+
 	boost::shared_ptr<TSocket> socket(new TSocket(ip, port));
 	boost::shared_ptr<TTransport> transport(new TBufferedTransport(socket));
 	boost::shared_ptr<TProtocol> protocol(new TBinaryProtocol(transport));
@@ -373,6 +395,8 @@ void WatDHTServer::join(std::vector<NodeID>& _return, const NodeID& nid, std::st
 void WatDHTServer::migrate_kv(std::map<std::string, std::string>& _return, const std::string& nid,
 		  std::string ip, int port)
 {
+	printf("Migrate_Kv client start\n");
+
 	boost::shared_ptr<TSocket> socket(new TSocket(ip, port));
 	boost::shared_ptr<TTransport> transport(new TBufferedTransport(socket));
 	boost::shared_ptr<TProtocol> protocol(new TBinaryProtocol(transport));
@@ -404,10 +428,14 @@ void WatDHTServer::migrate_kv(std::map<std::string, std::string>& _return, const
 	pthread_rwlock_wrlock(&hash_mutex);
 	hash_table.insert(_return.begin(),_return.end());
 	pthread_rwlock_unlock(&hash_mutex);
+
+	printf("Migrate_Kv client end\n");
 }
 
 void WatDHTServer::get(std::string& _return, const std::string& key, std::string ip, int port)
 {
+	printf("Client get start\n");
+
 	boost::shared_ptr<TSocket> socket(new TSocket(ip, port));
 	boost::shared_ptr<TTransport> transport(new TBufferedTransport(socket));
 	boost::shared_ptr<TProtocol> protocol(new TBinaryProtocol(transport));
@@ -420,10 +448,14 @@ void WatDHTServer::get(std::string& _return, const std::string& key, std::string
 	} catch (TTransportException e) {
 		printf("Caught exception: %s\n", e.what());
 	}
+
+	printf("Client get end\n");
 }
 
 void WatDHTServer::put(const std::string& key, const std::string& val, const int32_t duration, std::string ip, int port)
 {
+	printf("Client put start\n");
+
 	boost::shared_ptr<TSocket> socket(new TSocket(ip, port));
 	boost::shared_ptr<TTransport> transport(new TBufferedTransport(socket));
 	boost::shared_ptr<TProtocol> protocol(new TBinaryProtocol(transport));
@@ -436,6 +468,8 @@ void WatDHTServer::put(const std::string& key, const std::string& val, const int
 	} catch (TTransportException e) {
 		printf("Caught exception: %s\n", e.what());
 	}
+
+	printf("Client put end\n");
 }
 
 bool WatDHTServer::find_closest(NodeID& _dest, const std::string& key, bool cw)
@@ -479,6 +513,8 @@ bool WatDHTServer::find_closest(NodeID& _dest, const std::string& key, bool cw)
 void WatDHTServer::maintain(std::vector<NodeID> & _return, const std::string& id,
                              const NodeID& nid, std::string ip, int port)
 {
+	printf("Client maintain start\n");
+
 	boost::shared_ptr<TSocket> socket(new TSocket(ip, port));
 	boost::shared_ptr<TTransport> transport(new TBufferedTransport(socket));
 	boost::shared_ptr<TProtocol> protocol(new TBinaryProtocol(transport));
@@ -493,11 +529,15 @@ void WatDHTServer::maintain(std::vector<NodeID> & _return, const std::string& id
 	}
 
 	update_connections(_return,true);
+
+	printf("Client maintain end\n");
 }
 
 void WatDHTServer::gossip_neighbors(std::vector<NodeID> & _return, const NodeID& nid,
         const std::vector<NodeID> & neighbors, std::string ip, int port)
 {
+	printf("Client gossip_neighbours start\n");
+
 	boost::shared_ptr<TSocket> socket(new TSocket(ip, port));
 	boost::shared_ptr<TTransport> transport(new TBufferedTransport(socket));
 	boost::shared_ptr<TProtocol> protocol(new TBinaryProtocol(transport));
@@ -512,10 +552,14 @@ void WatDHTServer::gossip_neighbors(std::vector<NodeID> & _return, const NodeID&
 	}
 
 	update_connections(_return, true);
+
+	printf("Client gossip_neighbours end\n");
 }
 
 bool WatDHTServer::ping(std::string ip, int port)
 {
+	printf("Client pinging\n");
+
 	boost::shared_ptr<TSocket> socket(new TSocket(ip, port));
 	boost::shared_ptr<TTransport> transport(new TBufferedTransport(socket));
 	boost::shared_ptr<TProtocol> protocol(new TBinaryProtocol(transport));
@@ -543,6 +587,8 @@ bool WatDHTServer::ping(std::string ip, int port)
 
 void WatDHTServer::closest_node_cr(NodeID& _return, const std::string& id, std::string ip, int port)
 {
+	printf("Client closest_node_cr start\n");
+
 	boost::shared_ptr<TSocket> socket(new TSocket(ip, port));
 	boost::shared_ptr<TTransport> transport(new TBufferedTransport(socket));
 	boost::shared_ptr<TProtocol> protocol(new TBinaryProtocol(transport));
@@ -557,10 +603,14 @@ void WatDHTServer::closest_node_cr(NodeID& _return, const std::string& id, std::
 	}
 
 	update_connections(_return, true);
+
+	printf("Client closest_node_cr end\n");
 }
 
 void WatDHTServer::closest_node_ccr(NodeID& _return, const std::string& id, std::string ip, int port)
 {
+	printf("Client closest_node_ccr start\n");
+
 	boost::shared_ptr<TSocket> socket(new TSocket(ip, port));
 	boost::shared_ptr<TTransport> transport(new TBufferedTransport(socket));
 	boost::shared_ptr<TProtocol> protocol(new TBinaryProtocol(transport));
@@ -575,6 +625,8 @@ void WatDHTServer::closest_node_ccr(NodeID& _return, const std::string& id, std:
 	}
 
 	update_connections(_return, true);
+
+	printf("Client closest_node_ccr end\n");
 }
 
 bool WatDHTServer::isOwner(const std::string& key)
@@ -664,6 +716,7 @@ int main(int argc, char **argv) {
 				server.wat_state.change_state(NODE_READY);
 			} else {
 				server.migrate_kv(server.hash_table, server.get_NodeID().id, it.ip, it.port);
+				server.wat_state.change_state(NODE_READY);
 				server.run_gossip_neighbors();
 				server.run_maintain();
 			}

@@ -25,6 +25,8 @@ void WatDHTHandler::get(std::string& _return, const std::string& key)
 {
 	this->server->wat_state.wait_ge(NODE_READY);
 
+	printf("get_handler start\n");
+
 	if (server->isOwner(key)) {
 		pthread_rwlock_rdlock(&(server->hash_mutex));
 		std::map<std::string,long>::iterator it1 = server->stale_table.find(key);
@@ -56,12 +58,15 @@ void WatDHTHandler::get(std::string& _return, const std::string& key)
 		server->find_closest(_dest, key, true);
 		server->get(_return, key, _dest.ip, _dest.port);
 	}
-  printf("get\n");
+
+	printf("get_handler done\n");
 }    
     
 void WatDHTHandler::put(const std::string& key,
                         const std::string& val, 
                         const int32_t duration) {
+	printf("put_handler start\n");
+
 	this->server->wat_state.wait_ge(NODE_READY);
 
 	if (server->isOwner(key)) {
@@ -84,12 +89,12 @@ void WatDHTHandler::put(const std::string& key,
 		server->find_closest(_dest, key, true);
 		server->put(key, val, duration, _dest.ip, _dest.port);
 	}
-  printf("put\n");
+	printf("put_handler done\n");
 }
 
 void WatDHTHandler::join(std::vector<NodeID> & _return, const NodeID& nid)
 {
-	//if (server->isOwner(nid.id)) { // this is the predecessor of nid
+	printf("join_handler start\n");
 	if ( server->isOwner(nid.id) ) { // this is the predecessor of nid
 		_return.insert(_return.begin(), server->get_NodeID());
 		pthread_rwlock_rdlock(&(server->rt_mutex));
@@ -102,19 +107,20 @@ void WatDHTHandler::join(std::vector<NodeID> & _return, const NodeID& nid)
 		server->find_closest(_dest, nid.id, true);
 		server->join(_return, nid, _dest.ip, _dest.port);
 	}
-	printf("join\n");
+	printf("join_handler done\n");
 }    
     
 
 void WatDHTHandler::ping(std::string& _return) {
   // Your implementation goes here
-  printf("ping\n");
-  _return = server->get_id().to_string(); 
+  _return = server->get_id().to_string();
+  printf("pinged\n");
 } 
 
 void WatDHTHandler::maintain(std::vector<NodeID> & _return, 
                              const std::string& id, 
                              const NodeID& nid) {
+	printf("maintain_handler start\n");
 	if (server->isOwner(id)) { // this is the predecessor of nid
 		// populate _return (ensure all neighbours are alive before attaching them)
 		_return.insert(_return.begin(), server->get_NodeID());
@@ -128,11 +134,13 @@ void WatDHTHandler::maintain(std::vector<NodeID> & _return,
 		server->maintain(_return, id, nid, _dest.ip, _dest.port);
 	}
 	server->update_connections(nid, false);
-  printf("maintain\n");
+    printf("maintain_handler end\n");
 }
 
 void WatDHTHandler::migrate_kv(std::map<std::string, std::string> & _return, 
                                const std::string& nid) {
+	printf("migrate_kv_handler start\n");
+
 	if (server->get_state()==MIGRATE_KV) {
 		WatDHTException e;
 		e.__set_error_code(WatDHTErrorType::OL_MIGRATION_IN_PROGRESS);
@@ -154,12 +162,13 @@ void WatDHTHandler::migrate_kv(std::map<std::string, std::string> & _return,
 		e.__set_node(server->successors.front());
 		throw e;		return;
 	}
-  printf("migrate_kv\n");
+  printf("migrate_kv_handler end\n");
 }
 
 void WatDHTHandler::gossip_neighbors(std::vector<NodeID> & _return, 
                                      const NodeID& nid, 
                                      const std::vector<NodeID> & neighbors) {
+	printf("gossip_neighbors_handler start\n");
 	// populate _return (ensure all neighbours are alive before attaching them)
 	_return.insert(_return.begin(), server->get_NodeID());
 	pthread_rwlock_rdlock(&(server->rt_mutex));
@@ -171,7 +180,7 @@ void WatDHTHandler::gossip_neighbors(std::vector<NodeID> & _return,
 	neighbors_copy.insert(neighbors_copy.end(), neighbors.begin(), neighbors.end());
 	neighbors_copy.push_back(nid);
 	server->update_connections(neighbors_copy, true);
-	printf("gossip_neighbors\n");
+	printf("gossip_neighbors_handler end\n");
 }
 
 void WatDHTHandler::closest_node_cr(NodeID& _return, const std::string& id) {
