@@ -136,6 +136,11 @@ void WatDHTServer::run_maintain()
 	ushort i = 0;
 	NodeID _dest;
 	WatID _key;
+
+	if(successors.empty() || predecessors.empty() || rtable.empty()){
+		return;
+	}
+
 	std::vector<NodeID> _return;
 	for (i=0; i<4; i++){
 		if ( find_bucket(_dest, i) ) //node existed in routing table but has died since last check
@@ -174,16 +179,16 @@ void WatDHTServer::genWatID(WatID _return, const ushort& bucket)
 bool WatDHTServer::find_bucket(NodeID& _dest, const ushort& bucket)
 {
 	WatID curr;
+	pthread_rwlock_rdlock(&rt_mutex);
 	for (std::list<NodeID>::iterator it = rtable.begin(); it!=rtable.end(); it++) {
-		pthread_rwlock_rdlock(&rt_mutex);
 		curr.copy_from(it->id);
-		pthread_rwlock_unlock(&rt_mutex);
 		if (curr.hmatch_bin(wat_id,1)==bucket){
 			_dest = *it;
+			pthread_rwlock_unlock(&rt_mutex);
 			return true;
 		}
 	}
-
+	pthread_rwlock_unlock(&rt_mutex);
 	return false;
 }
 void WatDHTServer::update_connections(const NodeID& input, bool ping_nodes)
@@ -237,88 +242,6 @@ void WatDHTServer::do_update(std::list<NodeID>& sorted, bool ping_nodes)
 	}
 
 	pthread_rwlock_wrlock(&rt_mutex);
-
-	/*//Make sure no duplicates between sorted and (predecessors, successors, and rtable)
-	for (uint i=0; i<pappa_list.size(); i++) {
-		if(i<2){ //successors and predecessors
-			for (it=pappa_list[i]->begin(); it!=pappa_list[i]->end(); it++)
-			{
-				sorted.remove(*(it));
-			}
-		}
-		else { //routing table
-			for (it=sorted.begin(); it!=sorted.end(); it++)
-			{
-				rtable.remove(*(it));
-			}
-		}
-	}
-
-	// Update neighbour lists first
-	std::list<NodeID>::iterator suc_it = successors.begin();
-	std::list<NodeID>::iterator pred_it= predecessors.begin();
-	uint i =0;
-	while(i<4 && !sorted.empty())
-	{
-		if(!(i&1)){ //even: compare begin of sorted with successors
-			if( successors.empty() || compNodeCR( sorted.front(), *(suc_it), this->wat_id ) ){
-				successors.insert( suc_it,sorted.front() );
-				sorted.pop_front();
-				if( successors.size()>2){
-					insSorted (sorted, successors.back(), this->wat_id);
-					sorted.unique();
-					successors.pop_back();
-				}
-			}
-			else{
-				suc_it++;
-			}
-		}else{ //odd: compare end of sorted with predecessors
-			if( predecessors.empty() || compNodeCR( sorted.back(), *(pred_it), this->wat_id ) ){
-				predecessors.insert( pred_it,sorted.back() );
-				sorted.pop_back();
-				if( predecessors.size()>2){
-					insSorted (sorted, predecessors.back(), this->wat_id);
-					sorted.unique();
-					predecessors.pop_back();
-				}
-			}
-			else{
-				pred_it++;
-			}
-		}
-		i++;
-	}
-
-	//HANDLE routing table updates
-	rt_buckets=0;
-	if(!sorted.empty()){
-		rtable.insert(rtable.end(),sorted.begin(),sorted.end());
-	}
-	it=rtable.begin();
-	while( it!= rtable.end() ){
-		WatID bucket;
-		bucket.copy_from(it->id);
-		int rc = this->wat_id.hmatch_bin(bucket,1);
-		if(rc==-1 && !(this->rt_buckets & BUCKET_1) ){ //different MSB
-			this->rt_buckets |= BUCKET_1;
-		}
-		else if( rc==0 && !(this->rt_buckets & BUCKET_2) ){ //different 2nd MSB
-			this->rt_buckets |= BUCKET_2;
-		}
-		else if( rc==1 && !(this->rt_buckets & BUCKET_3) ){ //different 3rd MSB
-			this->rt_buckets |= BUCKET_3;
-		}
-		else if( rc==2 && !(this->rt_buckets & BUCKET_4) ){ //different 4th MSB
-			this->rt_buckets |= BUCKET_4;
-		}
-		else{
-			it = rtable.erase(it); //advances it to next
-			continue;
-		}
-		it++;
-	}
-	*/
 
 	//merge successors, predecessors, and rtable with sorted (use insertion sort)
 	for (uint i=0; i<pappa_list.size(); i++) {
@@ -499,8 +422,15 @@ void WatDHTServer::find_closest(NodeID& _dest, const std::string& key, bool cw)
 	//find node in neighbour set and routing table that is closest in distance to key
 	std::list<NodeID>::iterator it, closest;
 	WatID toFind, curr, temp, closestDist;
-	closestDist.copy_from(""); // initializing to a null WatID -- test correctness
+
+	unsigned char maxDist[MD5_DIGEST_LENGTH+1];
+	for (int i=0; i<MD5_DIGEST_LENGTH; i++) {
+		maxDist[i] = (unsigned char)(255);
+	}
+	maxDist[MD5_DIGEST_LENGTH] = '\0';
+	closestDist.copy_from(std::string(maxDist)); // initializing to a null WatID -- test correctness
 	toFind.copy_from(key);
+
 	pthread_rwlock_rdlock(&rt_mutex);
 
 	for (uint i=0; i<pappa_list.size(); i++) {
@@ -701,25 +631,25 @@ int main(int argc, char **argv) {
 		std::string ip = "";
 		if (argc >= 6) {
 			server.join(_return, server.get_NodeID(), (ip+=argv[4]), atoi(argv[5]));
+			// Initialization Routine
+			NodeID it = server.predecessors.front();
+			server.migrate_kv(server.hash_table, server.get_NodeID().id, it.ip, it.port);
+			server.run_gossip_neighbors();
+			server.run_maintain();
+		}else{
+			server.wat_state.change_state(NODE_READY);
 		}
 
-/*		// maintain period must be integer multiple of gossip period
-		int gossip_period = 10, gossip_maintain_ratio = 3;
-		// Initialization Routine
-		NodeID it = server.predecessors.front();
-		server.migrate_kv(server.hash_table, server.get_NodeID().id, it.ip, it.port);
-		this->wat_state.change_state(NODE_READY);
-		server.run_gossip_neighbors();
-		server.run_maintain();
-
+		// maintain period must be integer multiple of gossip period
+		int gossip_period = 1, gossip_maintain_ratio = 3;
 		// Regular Maintenance Schedule
 		while (true) {
 			for (int i=0; i<gossip_maintain_ratio; i++) {
-				server.run_gossip_neighbors();
 				sleep(gossip_period);
+				server.run_gossip_neighbors();
 			}
 			server.run_maintain();
-		}*/
+		}
 		server.wait(); // Wait until server shutdown.
 	} catch (int rc) {
 		printf("Caught exception %d, exiting\n", rc);
