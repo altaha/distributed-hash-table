@@ -175,12 +175,12 @@ void WatDHTHandler::gossip_neighbors(std::vector<NodeID> & _return,
 }
 
 void WatDHTHandler::closest_node_cr(NodeID& _return, const std::string& id) {
-	server->find_closest(_return, id, true);
+	server->find_closest(_return, id, false);
   printf("closest_node_cr\n");
 }
 
 void WatDHTHandler::closest_node_ccr(NodeID& _return, const std::string& id) {
-	server->find_closest(_return, id, false);
+	server->find_closest(_return, id, true);
 	printf("closest_node_ccr\n");
 }    
 } // namespace WatDHT

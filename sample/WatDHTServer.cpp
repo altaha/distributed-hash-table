@@ -120,7 +120,7 @@ int WatDHTServer::test(const char* ip, int port) {
 void WatDHTServer::run_gossip_neighbors()
 {
 	std::vector<NodeID> _return, neighbors;
-	NodeID nid = server_node_id;
+	NodeID nid = server_node_id, _dest, _closest;
 	pthread_rwlock_rdlock(&rt_mutex);
 	neighbors.insert(neighbors.begin(), predecessors.begin(), predecessors.end());
 	neighbors.insert(neighbors.end(), successors.begin(), successors.end());
@@ -129,6 +129,27 @@ void WatDHTServer::run_gossip_neighbors()
 	for (uint i=0; i<neighbors.size(); i++) {
 		gossip_neighbors(_return, nid, neighbors, neighbors[i].ip, neighbors[i].port);
 	}
+
+	pthread_rwlock_rdlock(&rt_mutex);
+	if (successors.empty()) {
+		pthread_rwlock_unlock(&rt_mutex);
+		find_closest(_dest, get_NodeID().id, false);
+		closest_node_cr(_closest, get_NodeID().id, _dest.ip, _dest.port);
+		update_connections(_closest, false);
+	} else {
+		pthread_rwlock_unlock(&rt_mutex);
+	}
+
+	pthread_rwlock_rdlock(&rt_mutex);
+	if (predecessors.empty()) {
+		pthread_rwlock_unlock(&rt_mutex);
+		find_closest(_dest, get_NodeID().id, true);
+		closest_node_ccr(_closest, get_NodeID().id, _dest.ip, _dest.port);
+		update_connections(_closest, false);
+	} else {
+		pthread_rwlock_unlock(&rt_mutex);
+	}
+
 }
 
 void WatDHTServer::run_maintain()
@@ -417,7 +438,7 @@ void WatDHTServer::put(const std::string& key, const std::string& val, const int
 	}
 }
 
-void WatDHTServer::find_closest(NodeID& _dest, const std::string& key, bool cw)
+bool WatDHTServer::find_closest(NodeID& _dest, const std::string& key, bool cw)
 {
 	//find node in neighbour set and routing table that is closest in distance to key
 	std::list<NodeID>::iterator it, closest;
@@ -447,7 +468,12 @@ void WatDHTServer::find_closest(NodeID& _dest, const std::string& key, bool cw)
 
 	pthread_rwlock_unlock(&rt_mutex);
 
+	temp.copy_from(std::string(maxDist));
+	if (closestDist==temp) { //don't have any nodes in my lists to return
+		return false;
+	}
 	_dest = *closest;
+	return true;
 }
 
 void WatDHTServer::maintain(std::vector<NodeID> & _return, const std::string& id,
@@ -634,10 +660,13 @@ int main(int argc, char **argv) {
 			// Initialization Routines
 			NodeID it;
 			//TODO: should check that find closest doesn't return invalid
-			server.find_closest(it, server.get_NodeID().id, true);
-			server.migrate_kv(server.hash_table, server.get_NodeID().id, it.ip, it.port);
-			server.run_gossip_neighbors();
-			server.run_maintain();
+			if (!server.find_closest(it, server.get_NodeID().id, true)) {
+				server.wat_state.change_state(NODE_READY);
+			} else {
+				server.migrate_kv(server.hash_table, server.get_NodeID().id, it.ip, it.port);
+				server.run_gossip_neighbors();
+				server.run_maintain();
+			}
 		}else{
 			server.wat_state.change_state(NODE_READY);
 		}

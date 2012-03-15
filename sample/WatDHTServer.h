@@ -48,7 +48,7 @@ class WatDHTServer {
   void run_gossip_neighbors();
   void run_maintain();
   bool find_bucket(NodeID& _dest, const ushort& bucket);
-  void find_closest(NodeID& _dest, const std::string& key, bool cw);
+  bool find_closest(NodeID& _dest, const std::string& key, bool cw);
   bool isOwner(const std::string& key);
   void genWatID(WatID _return, const ushort& bucket);
 
