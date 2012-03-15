@@ -43,7 +43,10 @@ class WatDHTServer {
   const WatID& get_id() { return wat_id; } 
   const NodeID& get_NodeID() { return server_node_id; }
   State get_state() { return wat_state.check_state(); }
-  
+
+  void run_gossip_neighbors();
+  void run_maintain();
+  bool find_bucket(NodeID& _dest, const ushort& bucket);
   void find_closest(NodeID& _dest, const std::string& key, bool cw);
   bool isOwner(const std::string& key);
 
@@ -58,7 +61,7 @@ class WatDHTServer {
 		  std::string ip, int port);
   void maintain(std::vector<NodeID> & _return, const std::string& id, const NodeID& nid,
 		  std::string ip, int port);
-  void gossip_neighbours(std::vector<NodeID> & _return, const NodeID& nid,
+  void gossip_neighbors(std::vector<NodeID> & _return, const NodeID& nid,
           const std::vector<NodeID> & neighbors, std::string ip, int port);
   bool ping(std::string ip, int port);
   void closest_node_cr(NodeID& _return, const std::string& id, std::string ip, int port);

@@ -76,8 +76,8 @@ void WatDHTHandler::join(std::vector<NodeID> & _return, const NodeID& nid)
 		pthread_rwlock_rdlock(&(server->rt_mutex));
 		_return.insert(_return.end(), server->predecessors.begin(), server->predecessors.end());
 		_return.insert(_return.end(), server->successors.begin(), server->successors.end());
-		server->update_connections(nid, false);
 		pthread_rwlock_unlock(&(server->rt_mutex));
+		server->update_connections(nid, false);
 	} else {
 		NodeID _dest;
 		server->find_closest(_dest, nid.id, true);
@@ -108,7 +108,7 @@ void WatDHTHandler::maintain(std::vector<NodeID> & _return,
 		server->find_closest(_dest, id, true);
 		server->maintain(_return, id, nid, _dest.ip, _dest.port);
 	}
-		//**TODO** use passed in nid to update my neighbour set
+	server->update_connections(nid, false);
   printf("maintain\n");
 }
 
@@ -133,6 +133,11 @@ void WatDHTHandler::migrate_kv(std::map<std::string, std::string> & _return,
 		e.__set_error_code(WatDHTErrorType::INCORRECT_MIGRATION_SOURCE);
 		e.__set_error_message("I'm not your predecessor.");
 		//**TODO**Check node before sending it back
+	/*	NodeID sucessor = server->successors.front();
+		if (!server->ping(sucessor.ip, sucessor.port)) {
+			// call delete on this node
+			sucessor = server->successors.front();
+		}*/
 		e.__set_node(server->successors.front());
 		throw e;		return;
 	}
@@ -147,10 +152,12 @@ void WatDHTHandler::gossip_neighbors(std::vector<NodeID> & _return,
 	pthread_rwlock_rdlock(&(server->rt_mutex));
 	_return.insert(_return.end(), server->predecessors.begin(), server->predecessors.end());
 	_return.insert(_return.end(), server->successors.begin(), server->successors.end());
-	_return.insert(_return.end(), server->rtable.begin(), server->rtable.end());
 	pthread_rwlock_unlock(&(server->rt_mutex));
 
-	//**TODO** use passed in nid and neighbours to update my neighbour set
+	std::vector<NodeID> neighbors_copy;
+	neighbors_copy.insert(neighbors_copy.begin(), neighbors.begin(), neighbors.end());
+	neighbors_copy.push_back(nid);
+	server->update_connections(neighbors_copy, true);
 	printf("gossip_neighbors\n");
 }
 

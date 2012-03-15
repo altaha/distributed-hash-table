@@ -114,6 +114,51 @@ int WatDHTServer::test(const char* ip, int port) {
   return 0;
 }
 
+void WatDHTServer::run_gossip_neighbors()
+{
+	std::vector<NodeID> _return, neighbors;
+	NodeID nid = server_node_id;
+	pthread_rwlock_rdlock(&rt_mutex);
+	neighbors.insert(neighbors.begin(), predecessors.begin(), predecessors.end());
+	neighbors.insert(neighbors.end(), successors.begin(), successors.end());
+	pthread_rwlock_unlock(&rt_mutex);
+
+	for (uint i=0; i<neighbors.size(); i++) {
+		gossip_neighbors(_return, nid, neighbors, neighbors[i].ip, neighbors[i].port);
+	}
+}
+
+void WatDHTServer::run_maintain()
+{
+	/*ushort i = 0;
+	NodeID _dest;
+	for (i=0; i<4; i++){
+		if ( find_bucket(_dest, i)  &&  !ping(_dest.ip, _dest.port) ) //node existed in routing table but has died since last check
+		{
+			erase(_dest);
+			maintain(i);
+		}
+		else { // no node in routing table for bucket
+			maintain(i);
+		}
+	}*/
+}
+
+bool WatDHTServer::find_bucket(NodeID& _dest, const ushort& bucket)
+{
+	WatID curr;
+	for (std::list<NodeID>::iterator it = rtable.begin(); it!=rtable.end(); it++) {
+		pthread_rwlock_rdlock(&rt_mutex);
+		curr.copy_from(it->id);
+		pthread_rwlock_unlock(&rt_mutex);
+		if (curr.hmatch_bin(wat_id,1)==bucket){
+			_dest = *it;
+			return true;
+		}
+	}
+
+	return false;
+}
 void WatDHTServer::update_connections(const NodeID& input, bool ping_nodes)
 {
 	std::list<NodeID> sorted;
@@ -260,45 +305,45 @@ void WatDHTServer::do_update(std::list<NodeID>& sorted, bool ping_nodes)
 // Join the DHT network and wait
 void WatDHTServer::join(std::vector<NodeID>& _return, const NodeID& nid, std::string ip, int port)
 {
-  wat_state.wait_ge(WatDHT::SERVER_CREATED);
+	wat_state.wait_ge(WatDHT::SERVER_CREATED);
 
-  boost::shared_ptr<TSocket> socket(new TSocket(ip, port));
-  boost::shared_ptr<TTransport> transport(new TBufferedTransport(socket));
-  boost::shared_ptr<TProtocol> protocol(new TBinaryProtocol(transport));
-  WatDHTClient client(protocol);
+	boost::shared_ptr<TSocket> socket(new TSocket(ip, port));
+	boost::shared_ptr<TTransport> transport(new TBufferedTransport(socket));
+	boost::shared_ptr<TProtocol> protocol(new TBinaryProtocol(transport));
+	WatDHTClient client(protocol);
 
-  if(nid == this->server_node_id){ //initate join
-	  this->wat_state.change_state(MIGRATE_KV);
-  }
-
-  try {
-	transport->open();
-	std::string remote_str;
-	client.join( _return, nid);
-	transport->close();
-
-  } catch (TTransportException e) {
-	printf("Caught exception: %s\n", e.what());
-	if( e.getType() == TTransportException::NOT_OPEN ){
-		//Failed communication, probably means node is dead
+	if(nid == this->server_node_id){ //initate join
+		this->wat_state.change_state(MIGRATE_KV);
 	}
-	return;
-  }
-  if(nid == this->server_node_id) //join initiator
-  {
-	  //**TODO** use return vector to populate neighbour set
-	  std::vector<NodeID>::iterator it;
-	  for (it=_return.begin(); it!=_return.end(); it++) {
-		  std::cout << "Port number = " << it->port << std::endl;
-	  }
 
-	  update_connections(_return, false);
+	try {
+		transport->open();
+		std::string remote_str;
+		client.join(_return, nid);
+		transport->close();
 
+	} catch (TTransportException e) {
+		printf("Caught exception: %s\n", e.what());
+		if( e.getType() == TTransportException::NOT_OPEN ){
+			//Failed communication, probably means node is dead
+			std::cout << "e = " << e.what() << std::endl;
+		}
+		return;
+	}
+	if(nid == this->server_node_id) //join initiator
+	{
+		//**TODO** use return vector to populate neighbour set
+		std::vector<NodeID>::iterator it;
+		for (it=_return.begin(); it!=_return.end(); it++) {
+			std::cout << "Port number = " << it->port << std::endl;
+		}
 
-  }
-  else{ //forward join
-	  _return.push_back(server_node_id); 	//add my nodeID to return
-  }
+		update_connections(_return, false);
+
+	}
+	else { //forward join
+		_return.push_back(server_node_id); 	//add my nodeID to return
+	}
 }
 
 
@@ -412,9 +457,11 @@ void WatDHTServer::maintain(std::vector<NodeID> & _return, const std::string& id
 	} catch (TTransportException e) {
 		printf("Caught exception: %s\n", e.what());
 	}
+
+	update_connections(_return,true);
 }
 
-void WatDHTServer::gossip_neighbours(std::vector<NodeID> & _return, const NodeID& nid,
+void WatDHTServer::gossip_neighbors(std::vector<NodeID> & _return, const NodeID& nid,
         const std::vector<NodeID> & neighbors, std::string ip, int port)
 {
 	boost::shared_ptr<TSocket> socket(new TSocket(ip, port));
@@ -429,6 +476,8 @@ void WatDHTServer::gossip_neighbours(std::vector<NodeID> & _return, const NodeID
 	} catch (TTransportException e) {
 		printf("Caught exception: %s\n", e.what());
 	}
+
+	update_connections(_return, true);
 }
 
 bool WatDHTServer::ping(std::string ip, int port)
@@ -473,7 +522,7 @@ void WatDHTServer::closest_node_cr(NodeID& _return, const std::string& id, std::
 		printf("Caught exception: %s\n", e.what());
 	}
 
-	//**TODO** use return value to update nearest neighbours
+	update_connections(_return, true);
 }
 
 void WatDHTServer::closest_node_ccr(NodeID& _return, const std::string& id, std::string ip, int port)
@@ -491,7 +540,7 @@ void WatDHTServer::closest_node_ccr(NodeID& _return, const std::string& id, std:
 		printf("Caught exception: %s\n", e.what());
 	}
 
-	//**TODO** use return value to update nearest neighbours
+	update_connections(_return, true);
 }
 
 bool WatDHTServer::isOwner(const std::string& key)
@@ -508,7 +557,7 @@ bool WatDHTServer::isOwner(const std::string& key)
 	else {
 		pthread_rwlock_unlock(&rt_mutex);
 		return true;
-	} //**TODO** - look at routing table?
+	}
 
 	pthread_rwlock_unlock(&rt_mutex);
 	return ( this->wat_id.distance_cr(toFind) < this->wat_id.distance_cr(closest) ) ? true : false;
@@ -552,34 +601,41 @@ void* WatDHTServer::start_rpc_server(void* param) {
 using namespace WatDHT;
 
 int main(int argc, char **argv) {
-  if (argc < 4) {
-    printf("Usage: %s server_id ip_address port [ip_address port]\n", argv[0]);
-    return -1;
-  }
-  try {
-    // Create the DHT node with the given IP address and port.    
-    WatDHTServer server(argv[1], argv[2], atoi(argv[3]));    
-    // Join the DHT ring via the bootstrap node.  
-    //if (argc >= 6 && server.test(argv[4], atoi(argv[5])) == -1) {
-    std::vector<NodeID> _return;
-    std::string ip = "";
-    if (argc >= 6) {
-    	server.join(_return, server.get_NodeID() , (ip+=argv[4]), atoi(argv[5]) );
-    }
-
-/*    // neighbour sets have been populated, call migrate_kv
-    std::map<std::string, std::string> _return;
-    NodeID it = server.predecessors.front();
-    try {
-    	server.migrate_kv(_return, server.get_NodeID().id, it.ip, it.port);
-    } catch (WatDHTException e) {
-		std::cout << "Caught exception: " << e.error_message << std::endl;
+	if (argc < 4) {
+		printf("Usage: %s server_id ip_address port [ip_address port]\n", argv[0]);
+		return -1;
 	}
-*/
-    server.wait(); // Wait until server shutdown.
-  } catch (int rc) {
-    printf("Caught exception %d, exiting\n", rc);
-    return -1;
-  }
-  return 0;
+	try {
+		// Create the DHT node with the given IP address and port.
+		WatDHTServer server(argv[1], argv[2], atoi(argv[3]));
+		// Join the DHT ring via the bootstrap node.
+		//if (argc >= 6 && server.test(argv[4], atoi(argv[5])) == -1) {
+		std::vector<NodeID> _return;
+		std::string ip = "";
+		if (argc >= 6) {
+			server.join(_return, server.get_NodeID(), (ip+=argv[4]), atoi(argv[5]));
+		}
+/*		// maintain period must be integer multiple of gossip period
+		int gossip_period = 10, gossip_maintain_ratio = 3;
+		// Initialization Routine
+		server.update_connections(_return, false);
+		NodeID it = server.predecessors.front();
+		server.migrate_kv(server.hash_table, server.get_NodeID().id, it.ip, it.port);
+		server.run_gossip_neighbors();
+		server.run_maintain();
+
+		// Regular Maintenance Schedule
+		while (true) {
+			for (int i=0; i<gossip_maintain_ratio; i++) {
+				server.run_gossip_neighbors();
+				sleep(gossip_period);
+			}
+			server.run_maintain();
+		}
+*/		server.wait(); // Wait until server shutdown.
+	} catch (int rc) {
+		printf("Caught exception %d, exiting\n", rc);
+		return -1;
+	}
+	return 0;
 }
