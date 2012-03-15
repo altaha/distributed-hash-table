@@ -133,18 +133,42 @@ void WatDHTServer::run_gossip_neighbors()
 
 void WatDHTServer::run_maintain()
 {
-	/*ushort i = 0;
+	ushort i = 0;
 	NodeID _dest;
+	WatID _key;
+	std::vector<NodeID> _return;
 	for (i=0; i<4; i++){
-		if ( find_bucket(_dest, i)  &&  !ping(_dest.ip, _dest.port) ) //node existed in routing table but has died since last check
+		if ( find_bucket(_dest, i) ) //node existed in routing table but has died since last check
 		{
-			erase(_dest);
-			maintain(i);
+			if (!ping(_dest.ip, _dest.port)) {
+				erase_node(_dest);
+				genWatID(_key,i);
+				find_closest(_dest, _key.to_string(), true);
+				maintain(_return, _key.to_string(), this->server_node_id, _dest.ip, _dest.port);
+			}
 		}
 		else { // no node in routing table for bucket
-			maintain(i);
+			genWatID(_key,i);
+			find_closest(_dest, _key.to_string(), true);
+			maintain(_return, _key.to_string(), this->server_node_id, _dest.ip, _dest.port);
 		}
-	}*/
+	}
+}
+
+void WatDHTServer::genWatID(WatID _return, const ushort& bucket)
+{
+	unsigned char key[MD5_DIGEST_LENGTH+1];
+	for (int i=0; i<MD5_DIGEST_LENGTH; i++) {
+		key[i] = (unsigned char)(255);
+	}
+	key[MD5_DIGEST_LENGTH] = '\0';
+
+	unsigned char x = this->get_NodeID().id[0];
+	x ^= 1<<(7-bucket);		// invert bit matching required bucket
+	x |= 255>>(bucket+1);	// set bits right of bucket-th bit to 1
+	key[0] = x;
+
+	_return.copy_from(std::string(key));
 }
 
 bool WatDHTServer::find_bucket(NodeID& _dest, const ushort& bucket)
@@ -386,7 +410,6 @@ void WatDHTServer::join(std::vector<NodeID>& _return, const NodeID& nid, std::st
 	}
 	if(nid == this->server_node_id) //join initiator
 	{
-		//**TODO** use return vector to populate neighbour set
 		std::vector<NodeID>::iterator it;
 		for (it=_return.begin(); it!=_return.end(); it++) {
 			std::cout << "Port number = " << it->port << std::endl;
@@ -678,6 +701,7 @@ int main(int argc, char **argv) {
 		if (argc >= 6) {
 			server.join(_return, server.get_NodeID(), (ip+=argv[4]), atoi(argv[5]));
 		}
+
 /*		// maintain period must be integer multiple of gossip period
 		int gossip_period = 10, gossip_maintain_ratio = 3;
 		// Initialization Routine

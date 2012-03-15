@@ -50,6 +50,7 @@ class WatDHTServer {
   bool find_bucket(NodeID& _dest, const ushort& bucket);
   void find_closest(NodeID& _dest, const std::string& key, bool cw);
   bool isOwner(const std::string& key);
+  void genWatID(WatID _return, const ushort& bucket);
 
   void erase_node(const NodeID& ers);
 

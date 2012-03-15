@@ -65,12 +65,12 @@ void WatDHTHandler::put(const std::string& key,
 	this->server->wat_state.wait_ge(NODE_READY);
 
 	if (server->isOwner(key)) {
-		pthread_rwlock_wrlock(&(server->rt_mutex));
+		pthread_rwlock_wrlock(&(server->hash_mutex));
 		if (duration==0) { server->hash_table.erase(key); }
 		else {
 			server->hash_table.insert(std::pair<std::string,std::string>(key,val));
 		}
-		pthread_rwlock_unlock(&(server->rt_mutex));
+		pthread_rwlock_unlock(&(server->hash_mutex));
 
 		if (duration>0) {
 			//add to toRemove queue
