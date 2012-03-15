@@ -3,6 +3,7 @@
 #include "WatID.h"
 #include "WatDHTState.h"
 #include "WatDHTHandler.h"
+#include <time.h>
 #include <unistd.h>
 #include <iostream>
 #include <pthread.h>
@@ -59,12 +60,14 @@ void insSorted (std::list<NodeID>& insList, const NodeID& i, const WatID& refere
 WatDHTServer::WatDHTServer(const char* id, 
                            const char* ip, 
                            int port) throw (int) : rpc_server(NULL) {
-  rt_buckets = 0;
   wat_id.set_using_md5(id);
   wat_id.debug_md5();
   server_node_id.id = wat_id.to_string();
   server_node_id.ip = ip;
   server_node_id.port = port;
+
+  start_time = time(NULL);
+
   pthread_rwlock_init(&rt_mutex, NULL);
   pthread_rwlock_init(&hash_mutex, NULL);
 
@@ -211,7 +214,7 @@ void WatDHTServer::do_update(std::list<NodeID>& sorted, bool ping_nodes)
 
 	pthread_rwlock_wrlock(&rt_mutex);
 
-	//Make sure no duplicates between sorted and (predecessors, successors, and rtable)
+	/*//Make sure no duplicates between sorted and (predecessors, successors, and rtable)
 	for (uint i=0; i<pappa_list.size(); i++) {
 		if(i<2){ //successors and predecessors
 			for (it=pappa_list[i]->begin(); it!=pappa_list[i]->end(); it++)
@@ -291,7 +294,58 @@ void WatDHTServer::do_update(std::list<NodeID>& sorted, bool ping_nodes)
 		}
 		it++;
 	}
+	*/
 
+	//merge successors, predecessors, and rtable with sorted (use insertion sort)
+	for (uint i=0; i<pappa_list.size(); i++) {
+		it = pappa_list[i]->begin();
+		while(it!=pappa_list[i]->end())
+		{
+			insSorted(sorted, (*it), this->wat_id);
+			it = pappa_list[i]->erase(it);
+		}
+	}
+	sorted.unique();
+
+	// Update neighbour lists first
+	uint i = 0;
+	while(i<4 && !sorted.empty()){
+		if(!(i&1)){ //even: add to successors
+			successors.push_back(sorted.front());
+			sorted.pop_front();
+		}else{
+			predecessors.push_back(sorted.back());
+			sorted.pop_back();
+		}
+		i++;
+	}
+
+	//HANDLE routing table updates
+	uint rt_buckets=0;
+	WatID bucket;
+	it=sorted.begin();
+	while( it!= sorted.end() && rt_buckets != 0xf ){
+		bool add_rt = true;
+		bucket.copy_from(it->id);
+		int rc = this->wat_id.hmatch_bin(bucket,1);
+		if(rc==-1 && !(rt_buckets & BUCKET_1) ){ //1st MSB
+			rt_buckets |= BUCKET_1;
+		}
+		else if( rc==0 && !(rt_buckets & BUCKET_2) ){ //2nd MSB
+			rt_buckets |= BUCKET_2;
+		}
+		else if( rc==1 && !(rt_buckets & BUCKET_3) ){ //3rd MSB
+			rt_buckets |= BUCKET_3;
+		}
+		else if( rc==2 && !(rt_buckets & BUCKET_4) ){ //4th MSB
+			rt_buckets |= BUCKET_4;
+		}
+		else{
+			add_rt = false;
+		}
+		if(add_rt){ rtable.push_back(*(it)); }
+		it++;
+	}
 	pthread_rwlock_unlock(&rt_mutex);
 
 	printf("Predecessors...\n");
@@ -563,6 +617,15 @@ bool WatDHTServer::isOwner(const std::string& key)
 	return ( this->wat_id.distance_cr(toFind) < this->wat_id.distance_cr(closest) ) ? true : false;
 }
 
+void WatDHTServer::erase_node(const NodeID& ers)
+{
+	pthread_rwlock_wrlock(&rt_mutex);
+	successors.remove(ers);
+	predecessors.remove(ers);
+	rtable.remove(ers);
+	pthread_rwlock_unlock(&rt_mutex);
+}
+
 int WatDHTServer::wait() {
   wat_state.wait_ge(WatDHT::SERVER_CREATED);
   // Perhaps perform your periodic tasks in this thread.
@@ -618,7 +681,6 @@ int main(int argc, char **argv) {
 /*		// maintain period must be integer multiple of gossip period
 		int gossip_period = 10, gossip_maintain_ratio = 3;
 		// Initialization Routine
-		server.update_connections(_return, false);
 		NodeID it = server.predecessors.front();
 		server.migrate_kv(server.hash_table, server.get_NodeID().id, it.ip, it.port);
 		server.run_gossip_neighbors();

@@ -13,10 +13,10 @@
 
 namespace WatDHT {
 
-#define BUCKET_1 0x1000
-#define BUCKET_2 0x0100
-#define BUCKET_3 0x0010
-#define BUCKET_4 0x0001
+#define BUCKET_1 0x8
+#define BUCKET_2 0x4
+#define BUCKET_3 0x2
+#define BUCKET_4 0x1
 
 class WatDHTServer {
  public:
@@ -26,10 +26,8 @@ class WatDHTServer {
   std::vector< std::list<NodeID>* > pappa_list;
   std::list<NodeID> predecessors, successors, rtable;
 
-  std::map<std::string,std::string> hash_table;
+  std::map<std::string,std::string> hash_table, stale_table;
   pthread_rwlock_t rt_mutex, hash_mutex;
-
-  uint rt_buckets;
 
   int  test(const char* ip, int port);
 
@@ -49,6 +47,8 @@ class WatDHTServer {
   bool find_bucket(NodeID& _dest, const ushort& bucket);
   void find_closest(NodeID& _dest, const std::string& key, bool cw);
   bool isOwner(const std::string& key);
+
+  void erase_node(const NodeID& ers);
 
   void update_connections(const std::vector<NodeID>& input, bool ping_nodes);
   void update_connections(const NodeID& input, bool ping_nodes);
@@ -78,6 +78,8 @@ class WatDHTServer {
   static void* start_rpc_server(void* param);
 
   void do_update(std::list<NodeID>& sorted, bool ping_nodes);
+
+  ulong start_time;
 
 };
 } // namespace WatDHT
