@@ -151,12 +151,6 @@ void WatDHTHandler::migrate_kv(std::map<std::string, std::string> & _return,
 		WatDHTException e;
 		e.__set_error_code(WatDHTErrorType::INCORRECT_MIGRATION_SOURCE);
 		e.__set_error_message("I'm not your predecessor.");
-		//**TODO**Check node before sending it back
-	/*	NodeID sucessor = server->successors.front();
-		if (!server->ping(sucessor.ip, sucessor.port)) {
-			// call delete on this node
-			sucessor = server->successors.front();
-		}*/
 		e.__set_node(server->successors.front());
 		throw e;		return;
 	}

@@ -496,7 +496,6 @@ void WatDHTServer::put(const std::string& key, const std::string& val, const int
 
 void WatDHTServer::find_closest(NodeID& _dest, const std::string& key, bool cw)
 {
-	//** TODO: check if any node in neighbour set is owner of key **//
 	//find node in neighbour set and routing table that is closest in distance to key
 	std::list<NodeID>::iterator it, closest;
 	WatID toFind, curr, temp, closestDist;
