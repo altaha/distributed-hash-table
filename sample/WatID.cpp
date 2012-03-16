@@ -27,9 +27,20 @@ void WatID::set_using_md5(const std::string& id) {
   MD5(reinterpret_cast<const unsigned char*>(id.data()), id.length(), id_array);
 }
 
-const WatID WatID::distance_ccr(const WatID& endpoint) const {
+const WatID WatID::distance_ccr(const WatID& endpoint) const
+{
   unsigned char diff_array[MD5_DIGEST_LENGTH];
   int carry_over = 0;
+
+  if(*(this)==endpoint){
+	  unsigned char maxDist[MD5_DIGEST_LENGTH+1];
+	  for (int i=0; i<MD5_DIGEST_LENGTH; i++) {
+		  maxDist[i] = (unsigned char)(255);
+	  }
+	  maxDist[MD5_DIGEST_LENGTH] = '\0';
+	  return WatID(maxDist); // set to maximum possible distance
+  }
+
   for (int i = MD5_DIGEST_LENGTH - 1; i >= 0; i--) {
     diff_array[i] = id_array[i] - endpoint.id_array[i] - carry_over;
     if (id_array[i] == 0) {

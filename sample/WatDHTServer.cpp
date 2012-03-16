@@ -90,35 +90,6 @@ WatDHTServer::~WatDHTServer() {
   delete rpc_server;
 }
 
-// Join the DHT network and wait
-int WatDHTServer::test(const char* ip, int port) {
-  wat_state.wait_ge(WatDHT::SERVER_CREATED);
-  
-  // The following is an example of sending a PING. This is normally not
-  // necessary during the join operation.
-  boost::shared_ptr<TSocket> socket(new TSocket(ip, port));
-  boost::shared_ptr<TTransport> transport(new TBufferedTransport(socket));
-  boost::shared_ptr<TProtocol> protocol(new TBinaryProtocol(transport));
-  WatDHTClient client(protocol);
-  try {
-    transport->open();
-    std::string remote_str;
-    client.ping(remote_str);
-    transport->close();
-    // Create a WatID object from the return value.
-    WatID remote_id;
-    if (remote_id.copy_from(remote_str) == -1) {
-      printf("Received invalid ID\n");
-    } else {
-      printf("Received:\n");
-      remote_id.debug_md5();
-    }
-  } catch (TTransportException e) {
-    printf("Caught exception: %s\n", e.what());
-  } 
-  return 0;
-}
-
 void WatDHTServer::run_gossip_neighbors()
 {
 	std::vector<NodeID> _return, neighbors;
@@ -260,9 +231,10 @@ void WatDHTServer::update_connections(const std::vector<NodeID>& input, bool pin
 
 	//Remove instance of this->wat_id in input
 	sorted.remove(this->server_node_id);
-
+#ifdef VERBOSE_DEBUG
 	printf("Printing what has been received...\n");
 	printList(sorted);
+#endif
 
 	if(!sorted.empty()){
 		do_update(sorted, ping_nodes);
@@ -349,8 +321,9 @@ void WatDHTServer::do_update(std::list<NodeID>& sorted, bool ping_nodes)
 bool WatDHTServer::join(std::vector<NodeID>& _return, const NodeID& nid, std::string ip, int port)
 {
 	wat_state.wait_ge(WatDHT::SERVER_CREATED);
-
+#ifdef VERBOSE_DEBUG
 	printf("Client join\n");
+#endif
 
 	boost::shared_ptr<TSocket> socket(new TSocket(ip, port));
 	boost::shared_ptr<TTransport> transport(new TBufferedTransport(socket));
@@ -374,12 +347,6 @@ bool WatDHTServer::join(std::vector<NodeID>& _return, const NodeID& nid, std::st
 	if(nid == this->server_node_id) //join initiator
 	{
 		//use return vector to populate neighbour set
-		std::vector<NodeID>::iterator it;
-		for (it=_return.begin(); it!=_return.end(); it++) {
-			std::cout << "Port number = " << it->port << "\t";
-		}
-		std::cout<< std::endl;
-
 		update_connections(_return, true);
 	}
 	else { //forward join
@@ -394,7 +361,9 @@ bool WatDHTServer::join(std::vector<NodeID>& _return, const NodeID& nid, std::st
 void WatDHTServer::migrate_kv(std::map<std::string, std::string>& _return, const std::string& nid,
 		  std::string ip, int port)
 {
+#ifdef VERBOSE_DEBUG
 	printf("Migrate_Kv client start\n");
+#endif
 
 	boost::shared_ptr<TSocket> socket(new TSocket(ip, port));
 	boost::shared_ptr<TTransport> transport(new TBufferedTransport(socket));
@@ -433,12 +402,16 @@ void WatDHTServer::migrate_kv(std::map<std::string, std::string>& _return, const
 	hash_table.insert(_return.begin(),_return.end());
 	pthread_rwlock_unlock(&hash_mutex);
 
+#ifdef VERBOSE_DEBUG
 	printf("Migrate_Kv client end\n");
+#endif
 }
 
 bool WatDHTServer::get(std::string& _return, const std::string& key, std::string ip, int port)
 {
+#ifdef VERBOSE_DEBUG
 	printf("Client get start\n");
+#endif
 
 	boost::shared_ptr<TSocket> socket(new TSocket(ip, port));
 	boost::shared_ptr<TTransport> transport(new TBufferedTransport(socket));
@@ -454,13 +427,17 @@ bool WatDHTServer::get(std::string& _return, const std::string& key, std::string
 		return false;
 	}
 
+#ifdef VERBOSE_DEBUG
 	printf("Client get end\n");
+#endif
 	return true;
 }
 
 bool WatDHTServer::put(const std::string& key, const std::string& val, const int32_t duration, std::string ip, int port)
 {
+#ifdef VERBOSE_DEBUG
 	printf("Client put start\n");
+#endif
 
 	boost::shared_ptr<TSocket> socket(new TSocket(ip, port));
 	boost::shared_ptr<TTransport> transport(new TBufferedTransport(socket));
@@ -476,7 +453,9 @@ bool WatDHTServer::put(const std::string& key, const std::string& val, const int
 		return false;
 	}
 
+#ifdef VERBOSE_DEBUG
 	printf("Client put end\n");
+#endif
 	return true;
 }
 
@@ -511,7 +490,7 @@ bool WatDHTServer::find_closest(NodeID& _dest, const std::string& key, bool cw)
 	pthread_rwlock_unlock(&rt_mutex);
 
 	temp.copy_from(std::string(maxDist));
-	if (closestDist==temp) { //don't have any nodes in my lists to return
+	if ( closestDist==temp ) { //don't have any nodes in my lists to return
 		return false;
 	}
 	_dest = *closest;
@@ -521,7 +500,9 @@ bool WatDHTServer::find_closest(NodeID& _dest, const std::string& key, bool cw)
 bool WatDHTServer::maintain(std::vector<NodeID> & _return, const std::string& id,
                              const NodeID& nid, std::string ip, int port)
 {
+#ifdef VERBOSE_DEBUG
 	printf("Client maintain start\n");
+#endif
 
 	boost::shared_ptr<TSocket> socket(new TSocket(ip, port));
 	boost::shared_ptr<TTransport> transport(new TBufferedTransport(socket));
@@ -539,15 +520,18 @@ bool WatDHTServer::maintain(std::vector<NodeID> & _return, const std::string& id
 	if(nid == this->server_node_id){ // If i'm the initiator
 		update_connections(_return,true);
 	}
-
+#ifdef VERBOSE_DEBUG
 	printf("Client maintain end\n");
+#endif
 	return true;
 }
 
 bool WatDHTServer::gossip_neighbors(std::vector<NodeID> & _return, const NodeID& nid,
         const std::vector<NodeID> & neighbors, std::string ip, int port)
 {
+#ifdef VERBOSE_DEBUG
 	printf("Client gossip_neighbours start\n");
+#endif
 
 	boost::shared_ptr<TSocket> socket(new TSocket(ip, port));
 	boost::shared_ptr<TTransport> transport(new TBufferedTransport(socket));
@@ -564,14 +548,17 @@ bool WatDHTServer::gossip_neighbors(std::vector<NodeID> & _return, const NodeID&
 	}
 
 	update_connections(_return, true);
-
+#ifdef VERBOSE_DEBUG
 	printf("Client gossip_neighbours end\n");
+#endif
 	return true;
 }
 
 bool WatDHTServer::ping(std::string ip, int port)
 {
+#ifdef VERBOSE_DEBUG
 	printf("Client pinging\n");
+#endif
 
 	boost::shared_ptr<TSocket> socket(new TSocket(ip, port));
 	boost::shared_ptr<TTransport> transport(new TBufferedTransport(socket));
@@ -585,11 +572,15 @@ bool WatDHTServer::ping(std::string ip, int port)
 		// Create a WatID object from the return value.
 		WatID remote_id;
 		if (remote_id.copy_from(remote_str) == -1) {
-			printf("Received invalid ID\n");
+#ifdef VERBOSE_DEBUG
+			printf("Ping received invalid ID\n");
+#endif
 			return false;
 		} else {
-			printf("Received:\n");
+#ifdef VERBOSE_DEBUG
+			printf("Ping received:\n");
 			remote_id.debug_md5();
+#endif
 		}
 	} catch (TTransportException e) {
 		printf("Caught exception: %s\n", e.what());
@@ -600,7 +591,9 @@ bool WatDHTServer::ping(std::string ip, int port)
 
 bool WatDHTServer::closest_node_cr(NodeID& _return, const std::string& id, std::string ip, int port)
 {
+#ifdef VERBOSE_DEBUG
 	printf("Client closest_node_cr start\n");
+#endif
 
 	boost::shared_ptr<TSocket> socket(new TSocket(ip, port));
 	boost::shared_ptr<TTransport> transport(new TBufferedTransport(socket));
@@ -619,13 +612,18 @@ bool WatDHTServer::closest_node_cr(NodeID& _return, const std::string& id, std::
 		update_connections(_return, true);
 	}
 
+#ifdef VERBOSE_DEBUG
 	printf("Client closest_node_cr end\n");
+#endif
 	return true;
 }
 
 bool WatDHTServer::closest_node_ccr(NodeID& _return, const std::string& id, std::string ip, int port)
 {
+#ifdef VERBOSE_DEBUG
 	printf("Client closest_node_ccr start\n");
+#endif
+
 
 	boost::shared_ptr<TSocket> socket(new TSocket(ip, port));
 	boost::shared_ptr<TTransport> transport(new TBufferedTransport(socket));
@@ -645,7 +643,9 @@ bool WatDHTServer::closest_node_ccr(NodeID& _return, const std::string& id, std:
 		update_connections(_return, true);
 	}
 
+#ifdef VERBOSE_DEBUG
 	printf("Client closest_node_ccr end\n");
+#endif
 	return true;
 }
 
@@ -657,16 +657,32 @@ bool WatDHTServer::isOwner(const std::string& key)
 	if (!successors.empty()) {
 		closest.copy_from(successors.begin()->id);
 	}
-	else if (!predecessors.empty()) {
-		closest.copy_from(predecessors.begin()->id);
-	}
-	else {
+	else{ //must search through predecessors and rtable
+		std::list<NodeID>::iterator it;
+		for(uint i=1; i < pappa_list.size(); i++){
+			for(it=pappa_list[i]->begin(); it!=pappa_list[i]->end(); it++){
+				WatID testID;
+				testID.copy_from(it->id);
+				if( this->wat_id.distance_cr(testID) < this->wat_id.distance_cr(toFind) ){
+					pthread_rwlock_unlock(&rt_mutex);
+					return false;
+				}
+			}
+		}
 		pthread_rwlock_unlock(&rt_mutex);
 		return true;
 	}
-
 	pthread_rwlock_unlock(&rt_mutex);
-	return ( this->wat_id.distance_cr(toFind) < this->wat_id.distance_cr(closest) ) ? true : false;
+	return ( this->wat_id.distance_cr(closest) < this->wat_id.distance_cr(toFind) ) ? false : true;
+
+	/*WatID test1 = this->wat_id.distance_cr(toFind);
+	WatID test2 = this->wat_id.distance_cr(closest);
+	if(test1 <= test2){
+		return true;
+	}
+	else{
+		return true;
+	}*/
 }
 
 void WatDHTServer::erase_node(const NodeID& ers)
@@ -744,7 +760,7 @@ int main(int argc, char **argv) {
 		}
 
 		// set periods for maintain and gossip independently
-		int gossip_period = 1000, maintain_period = 3000;
+		int gossip_period = 10, maintain_period = 30;
 		int gossip_elapsed =0, maintain_elapsed =0;
 		// Regular Maintenance Schedule
 		while(true){

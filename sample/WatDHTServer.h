@@ -11,6 +11,8 @@
 #include <pthread.h>
 #include <thrift/server/TThreadedServer.h>
 
+//#define VERBOSE_DEBUG
+
 namespace WatDHT {
 
 #define BUCKET_1 0x8
@@ -31,8 +33,6 @@ class WatDHTServer {
   std::map<std::string,std::string> hash_table;
   std::map<std::string,long> stale_table;
   pthread_rwlock_t rt_mutex, hash_mutex;
-
-  int  test(const char* ip, int port);
 
   // Block and wait until the server shutdowns.
   int wait();
