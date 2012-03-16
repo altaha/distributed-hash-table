@@ -121,7 +121,7 @@ int WatDHTServer::test(const char* ip, int port) {
 
 void WatDHTServer::run_gossip_neighbors()
 {
-	std::vector<NodeID> _return, neighbors, toUpdate;
+	std::vector<NodeID> _return, neighbors;
 	NodeID nid = server_node_id, _dest, _closest;
 	pthread_rwlock_rdlock(&rt_mutex);
 	neighbors.insert(neighbors.begin(), predecessors.begin(), predecessors.end());
@@ -129,7 +129,9 @@ void WatDHTServer::run_gossip_neighbors()
 	pthread_rwlock_unlock(&rt_mutex);
 
 	for (uint i=0; i<neighbors.size(); i++) {
-		gossip_neighbors(_return, nid, neighbors, neighbors[i].ip, neighbors[i].port);
+		if (!gossip_neighbors(_return, nid, neighbors, neighbors[i].ip, neighbors[i].port)){
+			erase_node(neighbors[i]);
+		}
 	}
 
 	pthread_rwlock_rdlock(&rt_mutex);
@@ -137,7 +139,6 @@ void WatDHTServer::run_gossip_neighbors()
 		pthread_rwlock_unlock(&rt_mutex);
 		if (find_closest(_dest, get_NodeID().id, false)){
 			closest_node_cr(_closest, get_NodeID().id, _dest.ip, _dest.port);
-			toUpdate.push_back(_closest);
 		}
 	} else {
 		pthread_rwlock_unlock(&rt_mutex);
@@ -148,13 +149,10 @@ void WatDHTServer::run_gossip_neighbors()
 		pthread_rwlock_unlock(&rt_mutex);
 		if (find_closest(_dest, get_NodeID().id, true)) {
 			closest_node_ccr(_closest, get_NodeID().id, _dest.ip, _dest.port);
-			toUpdate.push_back(_closest);
 		}
 	} else {
 		pthread_rwlock_unlock(&rt_mutex);
 	}
-
-	update_connections(toUpdate, false);
 }
 
 void WatDHTServer::run_maintain()
@@ -412,7 +410,12 @@ void WatDHTServer::migrate_kv(std::map<std::string, std::string>& _return, const
 			std::cout << "Caught exception: " << e.error_message << std::endl;
 
 			if (e.error_code==WatDHTErrorType::INCORRECT_MIGRATION_SOURCE){
-				migrate_kv(_return, e.node.id, e.node.ip, e.node.port);
+				update_connections(e.node, true);
+				NodeID pred;
+				if(!find_closest(pred, get_NodeID().id, false)) { //find predecessor. if not available, just call node returned from exception
+					pred = e.node;
+				}
+				migrate_kv(_return, pred.id, pred.ip, pred.port);
 			}
 			else if (e.error_code==WatDHTErrorType::OL_MIGRATION_IN_PROGRESS) {
 				if (sleepTime<2) { sleepTime=2; }
@@ -536,12 +539,12 @@ bool WatDHTServer::maintain(std::vector<NodeID> & _return, const std::string& id
 	if(nid == this->server_node_id){ // If i'm the initiator
 		update_connections(_return,true);
 	}
-	return true;
 
 	printf("Client maintain end\n");
+	return true;
 }
 
-void WatDHTServer::gossip_neighbors(std::vector<NodeID> & _return, const NodeID& nid,
+bool WatDHTServer::gossip_neighbors(std::vector<NodeID> & _return, const NodeID& nid,
         const std::vector<NodeID> & neighbors, std::string ip, int port)
 {
 	printf("Client gossip_neighbours start\n");
@@ -557,11 +560,13 @@ void WatDHTServer::gossip_neighbors(std::vector<NodeID> & _return, const NodeID&
 		transport->close();
 	} catch (TTransportException e) {
 		printf("Caught exception: %s\n", e.what());
+		return false;
 	}
 
 	update_connections(_return, true);
 
 	printf("Client gossip_neighbours end\n");
+	return true;
 }
 
 bool WatDHTServer::ping(std::string ip, int port)
@@ -593,7 +598,7 @@ bool WatDHTServer::ping(std::string ip, int port)
 	return true;
 }
 
-void WatDHTServer::closest_node_cr(NodeID& _return, const std::string& id, std::string ip, int port)
+bool WatDHTServer::closest_node_cr(NodeID& _return, const std::string& id, std::string ip, int port)
 {
 	printf("Client closest_node_cr start\n");
 
@@ -608,14 +613,17 @@ void WatDHTServer::closest_node_cr(NodeID& _return, const std::string& id, std::
 		transport->close();
 	} catch (TTransportException e) {
 		printf("Caught exception: %s\n", e.what());
+		return false;
+	}
+	if(id == this->server_node_id.id){ // If i'm the initiator
+		update_connections(_return, true);
 	}
 
-	update_connections(_return, true);
-
 	printf("Client closest_node_cr end\n");
+	return true;
 }
 
-void WatDHTServer::closest_node_ccr(NodeID& _return, const std::string& id, std::string ip, int port)
+bool WatDHTServer::closest_node_ccr(NodeID& _return, const std::string& id, std::string ip, int port)
 {
 	printf("Client closest_node_ccr start\n");
 
@@ -630,11 +638,15 @@ void WatDHTServer::closest_node_ccr(NodeID& _return, const std::string& id, std:
 		transport->close();
 	} catch (TTransportException e) {
 		printf("Caught exception: %s\n", e.what());
+		return false;
 	}
 
-	update_connections(_return, true);
+	if(id == this->server_node_id.id){ // If i'm the initiator
+		update_connections(_return, true);
+	}
 
 	printf("Client closest_node_ccr end\n");
+	return true;
 }
 
 bool WatDHTServer::isOwner(const std::string& key)

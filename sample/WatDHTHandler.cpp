@@ -55,7 +55,7 @@ void WatDHTHandler::get(std::string& _return, const std::string& key)
 	}
 	else {
 		NodeID _dest;
-		if (!server->find_closest(_dest, key, true)) { // I don't have any nodes to return
+		if (!server->find_closest(_dest, key, true)) { // I don't have any nodes to forward to
 			return;
 		}
 		if (!server->get(_return, key, _dest.ip, _dest.port)) {
@@ -91,11 +91,11 @@ void WatDHTHandler::put(const std::string& key,
 	}
 	else {
 		NodeID _dest;
-		if (!server->find_closest(_dest, key, true)) { // I don't have any nodes to return
+		if (!server->find_closest(_dest, key, true)) { // I don't have any nodes to forward to
 			return;
 		}
 		if (!server->put(key, val, duration, _dest.ip, _dest.port)){
-			server->erase_node(_dest);
+			server->erase_node(_dest); //comm prob with _dest, erase it and find another
 			put(key, val, duration);
 		}
 	}
@@ -114,11 +114,11 @@ void WatDHTHandler::join(std::vector<NodeID> & _return, const NodeID& nid)
 		server->update_connections(nid, false);
 	} else {
 		NodeID _dest;
-		if (!server->find_closest(_dest, nid.id, true)) {
+		if (!server->find_closest(_dest, nid.id, true)) { // I don't have any nodes to forward to
 			return;
 		}
 		if (!server->join(_return, nid, _dest.ip, _dest.port)) {
-			server->erase_node(_dest);
+			server->erase_node(_dest); //comm prob with _dest, erase it and find another
 			join(_return, nid);
 		}
 	}
@@ -145,11 +145,11 @@ void WatDHTHandler::maintain(std::vector<NodeID> & _return,
 		pthread_rwlock_unlock(&(server->rt_mutex));
 	} else {
 		NodeID _dest;
-		if (!server->find_closest(_dest, id, true)) { // I don't have any nodes to return
+		if (!server->find_closest(_dest, id, true)) { // I don't have any nodes to forward to
 			return;
 		}
 		if (!server->maintain(_return, id, nid, _dest.ip, _dest.port)) {
-			server->erase_node(_dest);
+			server->erase_node(_dest); //comm prob with _dest, erase it and find another
 			maintain(_return, id, nid);
 		}
 	}
@@ -168,7 +168,8 @@ void WatDHTHandler::migrate_kv(std::map<std::string, std::string> & _return,
 		throw e;		return;
 	}
 
-	if (server->successors.front().id==nid) { // nid is my successor
+	// put mutex for rtable
+	if (server->isOwner(nid)) { // nid is my successor
 		std::map<std::string, std::string>::iterator itlow = server->hash_table.lower_bound(nid); // get pointer to key that is >= nid
 		_return.insert(itlow,server->hash_table.end()); 			// copy key/value pairs for returning
 		pthread_rwlock_wrlock(&(server->hash_mutex));
@@ -179,7 +180,11 @@ void WatDHTHandler::migrate_kv(std::map<std::string, std::string> & _return,
 		WatDHTException e;
 		e.__set_error_code(WatDHTErrorType::INCORRECT_MIGRATION_SOURCE);
 		e.__set_error_message("I'm not your predecessor.");
-		e.__set_node(server->successors.front());
+		NodeID _dest;
+		if (!server->find_closest(_dest, nid, true)) { // don't have any nodes to forward to, let migrate come back to me later
+			_dest = server->get_NodeID();
+		}
+		e.__set_node(_dest);
 		throw e;		return;
 	}
   printf("migrate_kv_handler end\n");
@@ -204,12 +209,38 @@ void WatDHTHandler::gossip_neighbors(std::vector<NodeID> & _return,
 }
 
 void WatDHTHandler::closest_node_cr(NodeID& _return, const std::string& id) {
-	server->find_closest(_return, id, false);
+	if (server->isOwner(id)) { //
+		_return = server->get_NodeID();
+	} else {
+		NodeID _dest;
+		if (!server->find_closest(_dest, id, false)) { //don't have any nodes to pass back, just pass my own id back
+			_return = server->get_NodeID();
+			return;
+		}
+		if (!server->closest_node_cr(_return, id, _dest.ip, _dest.port)) {
+			server->erase_node(_dest); //comm prob with _dest, erase it and find another
+			closest_node_cr(_return, id);
+		}
+	}
+
   printf("closest_node_cr\n");
 }
 
 void WatDHTHandler::closest_node_ccr(NodeID& _return, const std::string& id) {
-	server->find_closest(_return, id, true);
+	if (server->isOwner(id)) { //
+		_return = server->get_NodeID();
+	} else {
+		NodeID _dest;
+		if (!server->find_closest(_return, id, true)) { //don't have any nodes to pass back, just pass my own id back
+			_return = server->get_NodeID();
+			return;
+		}
+		if (!server->closest_node_ccr(_return, id, _dest.ip, _dest.port)) {
+			server->erase_node(_dest);
+			closest_node_ccr(_return, id);
+		}
+	}
+
 	printf("closest_node_ccr\n");
 }    
 } // namespace WatDHT

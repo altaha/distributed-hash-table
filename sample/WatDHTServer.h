@@ -65,11 +65,11 @@ class WatDHTServer {
 		  std::string ip, int port);
   bool maintain(std::vector<NodeID> & _return, const std::string& id, const NodeID& nid,
 		  std::string ip, int port);
-  void gossip_neighbors(std::vector<NodeID> & _return, const NodeID& nid,
+  bool gossip_neighbors(std::vector<NodeID> & _return, const NodeID& nid,
           const std::vector<NodeID> & neighbors, std::string ip, int port);
   bool ping(std::string ip, int port);
-  void closest_node_cr(NodeID& _return, const std::string& id, std::string ip, int port);
-  void closest_node_ccr(NodeID& _return, const std::string& id, std::string ip, int port);
+  bool closest_node_cr(NodeID& _return, const std::string& id, std::string ip, int port);
+  bool closest_node_ccr(NodeID& _return, const std::string& id, std::string ip, int port);
   //void forward_join(std::vector<NodeID> & _return, const NodeID& nid, std::string ip, int port);
 
  private:
