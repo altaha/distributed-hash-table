@@ -80,17 +80,6 @@ void WatDHTServer::populate_hash_table() {
                hash_table.insert(std::pair<std::string, std::string>(key.to_string(), x));
                pthread_rwlock_unlock(&hash_mutex);
        }
-/*
-       pthread_rwlock_rdlock(&hash_mutex);
-       WatID toprint;
-       for (std::map<std::string, std::string>::iterator it =
-hash_table.begin(); it!=hash_table.end(); it++){
-    	   toprint.copy_from(it->first);
-    	   toprint.debug_md5();
-		   printf(" => %s\n", it->second.c_str());
-       }
-       pthread_rwlock_unlock(&hash_mutex);
-*/
 }
 
 void WatDHTServer::print_hash_table()
@@ -199,20 +188,20 @@ void WatDHTServer::run_maintain()
 				erase_node(_dest);
 				genWatID(_key,i);
 				if( find_closest(_dest, _key.to_string(), true) ){
-					if(_dest.id != lastFound){
+//					if(_dest.id != lastFound){
 						lastFound = _dest.id;
 						maintain(_return, _key.to_string(), this->server_node_id, _dest.ip, _dest.port);
-					}
+					//}
 				}
 			}
 		}
 		else { // no node in routing table for bucket
 			genWatID(_key,i);
 			if( find_closest(_dest, _key.to_string(), true) ){
-				if(_dest.id != lastFound){
+//				if(_dest.id != lastFound){
 					lastFound = _dest.id;
 					maintain(_return, _key.to_string(), this->server_node_id, _dest.ip, _dest.port);
-				}
+			//	}
 			}
 		}
 	}
@@ -449,6 +438,15 @@ void WatDHTServer::migrate_kv(std::map<std::string, std::string>& _return, const
 #endif
 }
 
+void WatDHTServer::init_get(std::string& _return, const std::string& key, std::string ip, int port){
+	try {
+		this->get(_return, key, ip,port);
+	} catch (WatDHTException e1) {
+		_return = "";
+		std::cout << "Caught exception: " << e1.error_message << std::endl;
+	}
+}
+
 bool WatDHTServer::get(std::string& _return, const std::string& key, std::string ip, int port)
 {
 #ifdef VERBOSE_DEBUG
@@ -464,8 +462,9 @@ bool WatDHTServer::get(std::string& _return, const std::string& key, std::string
 		try {
 			client.get(_return, key);
 		} catch (WatDHTException e1) {
-			_return = "";
-			std::cout << "Caught exception: " << e1.error_message << std::endl;
+			//_return = "";
+			//std::cout << "Caught exception: " << e1.error_message << std::endl;
+			throw e1;
 		}
 		transport->close();
 	} catch (TTransportException e) {
@@ -794,20 +793,15 @@ int main(int argc, char **argv) {
 			} else {
 				server.migrate_kv(server.hash_table, server.get_NodeID().id, it.ip, it.port);
 				server.wat_state.change_state(NODE_READY);
-				server.print_hash_table();
 				server.run_gossip_neighbors();
 				server.run_maintain();
+
 				WatID putty;
-				putty.set_using_md5(server.get_NodeID().ip);
-				std::cout<< "putty key: "; putty.debug_md5(); printf("\n");
-				server.put(putty.to_string(), "baller", 5, it.ip, it.port );
-				sleep(3);
-				std::string testy;
-				server.get(testy,putty.to_string(), it.ip, it.port );
-				std::cout<< "testy says: " << testy <<std::endl;
-				sleep(5);
-				server.get(testy,putty.to_string(), it.ip, it.port );
-				std::cout<< "testy says: " << testy <<std::endl;
+				char x[16];
+				sprintf(x, "%d",server.get_NodeID().port );
+				putty.set_using_md5( x );
+
+				server.put(putty.to_string(), "baller", -1, it.ip, it.port );
 			}
 		}else{
 			server.wat_state.wait_ge(SERVER_CREATED);

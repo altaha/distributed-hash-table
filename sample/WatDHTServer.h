@@ -62,6 +62,7 @@ class WatDHTServer {
   void print_hash_table();
 
   //RPC functions
+  void init_get(std::string& _return, const std::string& key, std::string ip, int port);
   bool get(std::string& _return, const std::string& key, std::string ip, int port);
   bool put(const std::string& key, const std::string& val, const int32_t duration, std::string ip, int port);
   bool join(std::vector<NodeID>& _return, const NodeID& nid, std::string ip, int port);

@@ -213,11 +213,11 @@ void WatDHTHandler::migrate_kv(std::map<std::string, std::string> & _return,
 				server->stale_table.erase(it1->first);	// remove key from stale table
 				pthread_rwlock_unlock(&(server->hash_mutex));
 			}
+			pthread_rwlock_wrlock(&(server->hash_mutex));
+			server->hash_table.erase(it1->first);	// delete pairs from local structure
+			pthread_rwlock_unlock(&(server->hash_mutex));
 			it1++;
 		}
-		pthread_rwlock_wrlock(&(server->hash_mutex));
-		server->hash_table.erase(itlow,server->hash_table.end());	// delete pairs from local structure
-		pthread_rwlock_unlock(&(server->hash_mutex));
 	}
 	else {
 		WatDHTException e;
