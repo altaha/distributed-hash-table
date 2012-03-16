@@ -188,20 +188,20 @@ void WatDHTServer::run_maintain()
 				erase_node(_dest);
 				genWatID(_key,i);
 				if( find_closest(_dest, _key.to_string(), true) ){
-//					if(_dest.id != lastFound){
+					if(_dest.id != lastFound){
 						lastFound = _dest.id;
 						maintain(_return, _key.to_string(), this->server_node_id, _dest.ip, _dest.port);
-					//}
+					}
 				}
 			}
 		}
 		else { // no node in routing table for bucket
 			genWatID(_key,i);
 			if( find_closest(_dest, _key.to_string(), true) ){
-//				if(_dest.id != lastFound){
+				if(_dest.id != lastFound){
 					lastFound = _dest.id;
 					maintain(_return, _key.to_string(), this->server_node_id, _dest.ip, _dest.port);
-			//	}
+				}
 			}
 		}
 	}
