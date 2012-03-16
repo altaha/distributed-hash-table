@@ -119,7 +119,7 @@ void WatID::debug_md5() const {
   for (int i = 0; i < MD5_DIGEST_LENGTH; ++i) {
     printf("%02x", id_array[i]);
   }
-  //TODO uncomment this:printf("\n");
+  printf("\n");
 }
 }
 

@@ -25,7 +25,9 @@ void WatDHTHandler::get(std::string& _return, const std::string& key)
 {
 	this->server->wat_state.wait_ge(NODE_READY);
 
+#ifdef VERBOSE_DEBUG
 	printf("get_handler start\n");
+#endif
 
 	if (server->isOwner(key)) {
 		pthread_rwlock_rdlock(&(server->hash_mutex));
@@ -63,8 +65,9 @@ void WatDHTHandler::get(std::string& _return, const std::string& key)
 			get(_return, key);
 		}
 	}
-
+#ifdef VERBOSE_DEBUG
 	printf("get_handler done\n");
+#endif
 }    
     
 void WatDHTHandler::put(const std::string& key,

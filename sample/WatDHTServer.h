@@ -11,7 +11,10 @@
 #include <pthread.h>
 #include <thrift/server/TThreadedServer.h>
 
-//#define VERBOSE_DEBUG
+#define GOSSIP_PERIOD 10
+#define MAINTAIN_PERIOD 30
+
+#define VERBOSE_DEBUG
 
 namespace WatDHT {
 
@@ -57,10 +60,6 @@ class WatDHTServer {
   void update_connections(const std::vector<NodeID>& input, bool ping_nodes);
   void update_connections(const NodeID& input, bool ping_nodes);
 
-  void printConnections();
-  void populate_hash_table();
-  void print_hash_table();
-
   //RPC functions
   void init_get(std::string& _return, const std::string& key, std::string ip, int port);
   bool get(std::string& _return, const std::string& key, std::string ip, int port);
@@ -75,7 +74,6 @@ class WatDHTServer {
   bool ping(std::string ip, int port);
   bool closest_node_cr(NodeID& _return, const std::string& id, std::string ip, int port);
   bool closest_node_ccr(NodeID& _return, const std::string& id, std::string ip, int port);
-  //void forward_join(std::vector<NodeID> & _return, const NodeID& nid, std::string ip, int port);
 
  private:
   WatID wat_id;             // This node's ID on the DHT.

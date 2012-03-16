@@ -24,6 +24,7 @@ using namespace ::apache::thrift::concurrency;
 
 using boost::shared_ptr;
 
+
 namespace WatDHT {
 
 void printList(std::list<NodeID>& in){
@@ -36,16 +37,6 @@ void printVector(std::vector<NodeID>& in){
 	for( std::vector<NodeID>::iterator it=in.begin(); it!=in.end(); it++ ){
 		printf( "%d, ", it->port);
 	}
-	printf("\n");
-}
-
-void WatDHTServer::printConnections(){
-	printf("\nPredecessors...");
-	printList(this->predecessors);
-	printf("Successors...");
-	printList(this->successors);
-	printf("Routing Table...");
-	printList(this->rtable);
 	printf("\n");
 }
 
@@ -68,35 +59,6 @@ void insSorted (std::list<NodeID>& insList, const NodeID& i, const WatID& refere
 	}
 	insList.insert(it, i);
 }
-
-void WatDHTServer::populate_hash_table() {
-       char y[MD5_DIGEST_LENGTH], x[MD5_DIGEST_LENGTH];
-       WatID key;//
-       for (int i=50; i<60; i++) {
-               sprintf(y, "%d", i);
-               key.set_using_md5(y);
-               sprintf(x, "%d", i);
-               pthread_rwlock_wrlock(&hash_mutex);
-               hash_table.insert(std::pair<std::string, std::string>(key.to_string(), x));
-               pthread_rwlock_unlock(&hash_mutex);
-       }
-}
-
-void WatDHTServer::print_hash_table()
-{
-	printf("In my hash table:\n");
-	pthread_rwlock_rdlock(&hash_mutex);
-   WatID toprint;
-   for (std::map<std::string, std::string>::iterator it = \
-		   	   hash_table.begin(); it!=hash_table.end(); it++){
-	   toprint.copy_from(it->first);
-	   toprint.debug_md5();
-	   printf(" => %s\n", it->second.c_str());
-   }
-   pthread_rwlock_unlock(&hash_mutex);
-   printf("\n");
-}
-
 
 WatDHTServer::WatDHTServer(const char* id, 
                            const char* ip, 
@@ -379,7 +341,6 @@ bool WatDHTServer::join(std::vector<NodeID>& _return, const NodeID& nid, std::st
 	{
 		//use return vector to populate neighbour set
 		update_connections(_return, true);
-		printConnections();
 	}
 	else { //forward join
 		update_connections(nid, false);
@@ -514,7 +475,7 @@ bool WatDHTServer::find_closest(NodeID& _dest, const std::string& key, bool cw)
 		maxDist[i] = (unsigned char)(255);
 	}
 	maxDist[MD5_DIGEST_LENGTH] = '\0';
-	closestDist.copy_from(std::string(maxDist)); // initializing to a null WatID -- test correctness
+	closestDist.copy_from(std::string(maxDist)); // initializing to a null WatID
 	toFind.copy_from(key);
 
 	pthread_rwlock_rdlock(&rt_mutex);
@@ -715,15 +676,6 @@ bool WatDHTServer::isOwner(const std::string& key)
 	}
 	pthread_rwlock_unlock(&rt_mutex);
 	return ( this->wat_id.distance_cr(closest) < this->wat_id.distance_cr(toFind) ) ? false : true;
-
-	/*WatID test1 = this->wat_id.distance_cr(toFind);
-	WatID test2 = this->wat_id.distance_cr(closest);
-	if(test1 <= test2){
-		return true;
-	}
-	else{
-		return true;
-	}*/
 }
 
 void WatDHTServer::erase_node(const NodeID& ers)
@@ -795,30 +747,14 @@ int main(int argc, char **argv) {
 				server.wat_state.change_state(NODE_READY);
 				server.run_gossip_neighbors();
 				server.run_maintain();
-				server.print_hash_table();
-
-				WatID putty;
-				char x[16];
-				sprintf(x, "%d",server.get_NodeID().port );
-				putty.set_using_md5( x );
-				server.put(putty.to_string(), "baller", -1, it.ip, it.port );
-				server.print_hash_table();
-
-				sleep(10);
-
-				server.put(putty.to_string(), "baller", 0, it.ip, it.port );
-				server.print_hash_table();
-				sleep(10);
 			}
 		}else{
 			server.wat_state.wait_ge(SERVER_CREATED);
 			server.wat_state.change_state(NODE_READY);
-			server.populate_hash_table();
-			server.print_hash_table();
 		}
 
 		// set periods for maintain and gossip independently
-		int gossip_period = 10, maintain_period = 30;
+		int gossip_period = GOSSIP_PERIOD, maintain_period = MAINTAIN_PERIOD;
 		int gossip_elapsed =0, maintain_elapsed =0;
 		// Regular Maintenance Schedule
 		while(true){
@@ -828,15 +764,10 @@ int main(int argc, char **argv) {
 			if(gossip_elapsed==gossip_period){
 				server.run_gossip_neighbors();
 				gossip_elapsed = 0;
-				printf("Periodic gossip neighbours");
-				server.printConnections();
-				server.print_hash_table();
 			}
 			if(maintain_elapsed==maintain_period){
 				server.run_maintain();
 				maintain_elapsed = 0;
-				printf("Periodic maintain");
-				server.printConnections();
 			}
 		}
 		server.wait(); // Wait until server shutdown.
