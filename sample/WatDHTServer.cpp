@@ -95,6 +95,7 @@ hash_table.begin(); it!=hash_table.end(); it++){
 
 void WatDHTServer::print_hash_table()
 {
+	printf("In my hash table:\n");
 	pthread_rwlock_rdlock(&hash_mutex);
    WatID toprint;
    for (std::map<std::string, std::string>::iterator it = \
@@ -104,6 +105,7 @@ void WatDHTServer::print_hash_table()
 	   printf(" => %s\n", it->second.c_str());
    }
    pthread_rwlock_unlock(&hash_mutex);
+   printf("\n");
 }
 
 
@@ -377,7 +379,6 @@ bool WatDHTServer::join(std::vector<NodeID>& _return, const NodeID& nid, std::st
 
 	try {
 		transport->open();
-		std::string remote_str;
 		client.join(_return, nid);
 		transport->close();
 
@@ -414,7 +415,6 @@ void WatDHTServer::migrate_kv(std::map<std::string, std::string>& _return, const
 	static uint sleepTime;
 	try {
 		transport->open();
-		std::string remote_str;
 		try {
 			client.migrate_kv(_return, nid);
 		} catch (WatDHTException e) {
@@ -461,8 +461,12 @@ bool WatDHTServer::get(std::string& _return, const std::string& key, std::string
 	WatDHTClient client(protocol);
 	try {
 		transport->open();
-		std::string remote_str;
-		client.get(_return, key);
+		try {
+			client.get(_return, key);
+		} catch (WatDHTException e1) {
+			_return = "";
+			std::cout << "Caught exception: " << e1.error_message << std::endl;
+		}
 		transport->close();
 	} catch (TTransportException e) {
 		printf("Caught exception: %s\n", e.what());
@@ -487,7 +491,6 @@ bool WatDHTServer::put(const std::string& key, const std::string& val, const int
 	WatDHTClient client(protocol);
 	try {
 		transport->open();
-		std::string remote_str;
 		client.put(key, val, duration);
 		transport->close();
 	} catch (TTransportException e) {
@@ -552,7 +555,6 @@ bool WatDHTServer::maintain(std::vector<NodeID> & _return, const std::string& id
 	WatDHTClient client(protocol);
 	try {
 		transport->open();
-		std::string remote_str;
 		client.maintain(_return, id, nid);
 		transport->close();
 	} catch (TTransportException e) {
@@ -581,7 +583,6 @@ bool WatDHTServer::gossip_neighbors(std::vector<NodeID> & _return, const NodeID&
 	WatDHTClient client(protocol);
 	try {
 		transport->open();
-		std::string remote_str;
 		client.gossip_neighbors(_return, nid, neighbors);
 		transport->close();
 	} catch (TTransportException e) {
@@ -673,7 +674,6 @@ bool WatDHTServer::closest_node_ccr(NodeID& _return, const std::string& id, std:
 	WatDHTClient client(protocol);
 	try {
 		transport->open();
-		std::string remote_str;
 		client.closest_node_ccr(_return, id);
 		transport->close();
 	} catch (TTransportException e) {
@@ -794,10 +794,23 @@ int main(int argc, char **argv) {
 			} else {
 				server.migrate_kv(server.hash_table, server.get_NodeID().id, it.ip, it.port);
 				server.wat_state.change_state(NODE_READY);
+				server.print_hash_table();
 				server.run_gossip_neighbors();
 				server.run_maintain();
+				WatID putty;
+				putty.set_using_md5(server.get_NodeID().ip);
+				std::cout<< "putty key: "; putty.debug_md5(); printf("\n");
+				server.put(putty.to_string(), "baller", 5, it.ip, it.port );
+				sleep(3);
+				std::string testy;
+				server.get(testy,putty.to_string(), it.ip, it.port );
+				std::cout<< "testy says: " << testy <<std::endl;
+				sleep(5);
+				server.get(testy,putty.to_string(), it.ip, it.port );
+				std::cout<< "testy says: " << testy <<std::endl;
 			}
 		}else{
+			server.wat_state.wait_ge(SERVER_CREATED);
 			server.wat_state.change_state(NODE_READY);
 			server.populate_hash_table();
 			server.print_hash_table();
@@ -816,6 +829,7 @@ int main(int argc, char **argv) {
 				gossip_elapsed = 0;
 				printf("Periodic gossip neighbours");
 				server.printConnections();
+				server.print_hash_table();
 			}
 			if(maintain_elapsed==maintain_period){
 				server.run_maintain();

@@ -47,7 +47,7 @@ void WatDHTHandler::get(std::string& _return, const std::string& key)
 			WatDHTException e;
 			e.__set_error_code(WatDHTErrorType::KEY_NOT_FOUND);
 			e.__set_error_message("Key not found");
-			throw e;
+			throw e; return;
 		}
 		else {
 			_return = it2->second;
@@ -70,9 +70,11 @@ void WatDHTHandler::get(std::string& _return, const std::string& key)
 void WatDHTHandler::put(const std::string& key,
                         const std::string& val, 
                         const int32_t duration) {
+#ifdef VERBOSE_DEBUG
 	printf("put_handler start\n");
+#endif
 
-	this->server->wat_state.wait_ge(NODE_READY);
+	this->server->wat_state.wait_ge(NODE_READY); //block on migrate_kv
 
 	if (server->isOwner(key)) {
 		pthread_rwlock_wrlock(&(server->hash_mutex));
@@ -99,7 +101,9 @@ void WatDHTHandler::put(const std::string& key,
 			put(key, val, duration);
 		}
 	}
+#ifdef VERBOSE_DEBUG
 	printf("put_handler done\n");
+#endif
 }
 
 void WatDHTHandler::join(std::vector<NodeID> & _return, const NodeID& nid)
