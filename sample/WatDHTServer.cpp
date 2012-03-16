@@ -795,13 +795,20 @@ int main(int argc, char **argv) {
 				server.wat_state.change_state(NODE_READY);
 				server.run_gossip_neighbors();
 				server.run_maintain();
+				server.print_hash_table();
 
 				WatID putty;
 				char x[16];
 				sprintf(x, "%d",server.get_NodeID().port );
 				putty.set_using_md5( x );
-
 				server.put(putty.to_string(), "baller", -1, it.ip, it.port );
+				server.print_hash_table();
+
+				sleep(10);
+
+				server.put(putty.to_string(), "baller", 0, it.ip, it.port );
+				server.print_hash_table();
+				sleep(10);
 			}
 		}else{
 			server.wat_state.wait_ge(SERVER_CREATED);
