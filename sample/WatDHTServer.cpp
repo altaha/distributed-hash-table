@@ -28,15 +28,25 @@ namespace WatDHT {
 
 void printList(std::list<NodeID>& in){
 	for( std::list<NodeID>::iterator it=in.begin(); it!=in.end(); it++ ){
-		printf( "NodeID port: %d\t", it->port);
-		printf("\n");
+		printf( "%d, ", it->port);
 	}
+	printf("\n");
 }
 void printVector(std::vector<NodeID>& in){
 	for( std::vector<NodeID>::iterator it=in.begin(); it!=in.end(); it++ ){
-		printf( "NodeID port: %d\t", it->port);
-		printf("\n");
+		printf( "%d, ", it->port);
 	}
+	printf("\n");
+}
+
+void WatDHTServer::printConnections(){
+	printf("\nPredecessors...");
+	printList(this->predecessors);
+	printf("Successors...");
+	printList(this->successors);
+	printf("Routing Table...");
+	printList(this->rtable);
+	printf("\n");
 }
 
 bool compNodeCR (const NodeID& i,const NodeID& j, const WatID& reference)
@@ -308,13 +318,6 @@ void WatDHTServer::do_update(std::list<NodeID>& sorted, bool ping_nodes)
 		it++;
 	}
 	pthread_rwlock_unlock(&rt_mutex);
-
-	printf("Predecessors...\n");
-	printList(this->predecessors);
-	printf("Successors...\n");
-	printList(this->successors);
-	printf("Routing Table...\n");
-	printList(this->rtable);
 }
 
 // Join the DHT network and wait
@@ -348,6 +351,7 @@ bool WatDHTServer::join(std::vector<NodeID>& _return, const NodeID& nid, std::st
 	{
 		//use return vector to populate neighbour set
 		update_connections(_return, true);
+		printConnections();
 	}
 	else { //forward join
 		update_connections(nid, false);
@@ -770,10 +774,14 @@ int main(int argc, char **argv) {
 			if(gossip_elapsed==gossip_period){
 				server.run_gossip_neighbors();
 				gossip_elapsed = 0;
+				printf("Periodic gossip neighbours");
+				server.printConnections();
 			}
 			if(maintain_elapsed==maintain_period){
 				server.run_maintain();
 				maintain_elapsed = 0;
+				printf("Periodic maintain");
+				server.printConnections();
 			}
 		}
 		server.wait(); // Wait until server shutdown.

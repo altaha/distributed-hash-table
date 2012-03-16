@@ -57,6 +57,8 @@ class WatDHTServer {
   void update_connections(const std::vector<NodeID>& input, bool ping_nodes);
   void update_connections(const NodeID& input, bool ping_nodes);
 
+  void printConnections();
+
   //RPC functions
   bool get(std::string& _return, const std::string& key, std::string ip, int port);
   bool put(const std::string& key, const std::string& val, const int32_t duration, std::string ip, int port);
