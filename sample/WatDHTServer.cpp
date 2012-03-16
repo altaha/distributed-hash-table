@@ -69,6 +69,44 @@ void insSorted (std::list<NodeID>& insList, const NodeID& i, const WatID& refere
 	insList.insert(it, i);
 }
 
+void WatDHTServer::populate_hash_table() {
+       char y[MD5_DIGEST_LENGTH], x[MD5_DIGEST_LENGTH];
+       WatID key;//
+       for (int i=50; i<60; i++) {
+               sprintf(y, "%d", i);
+               key.set_using_md5(y);
+               sprintf(x, "%d", i);
+               pthread_rwlock_wrlock(&hash_mutex);
+               hash_table.insert(std::pair<std::string, std::string>(key.to_string(), x));
+               pthread_rwlock_unlock(&hash_mutex);
+       }
+/*
+       pthread_rwlock_rdlock(&hash_mutex);
+       WatID toprint;
+       for (std::map<std::string, std::string>::iterator it =
+hash_table.begin(); it!=hash_table.end(); it++){
+    	   toprint.copy_from(it->first);
+    	   toprint.debug_md5();
+		   printf(" => %s\n", it->second.c_str());
+       }
+       pthread_rwlock_unlock(&hash_mutex);
+*/
+}
+
+void WatDHTServer::print_hash_table()
+{
+	pthread_rwlock_rdlock(&hash_mutex);
+   WatID toprint;
+   for (std::map<std::string, std::string>::iterator it = \
+		   	   hash_table.begin(); it!=hash_table.end(); it++){
+	   toprint.copy_from(it->first);
+	   toprint.debug_md5();
+	   printf(" => %s\n", it->second.c_str());
+   }
+   pthread_rwlock_unlock(&hash_mutex);
+}
+
+
 WatDHTServer::WatDHTServer(const char* id, 
                            const char* ip, 
                            int port) throw (int) : rpc_server(NULL) {
@@ -761,6 +799,8 @@ int main(int argc, char **argv) {
 			}
 		}else{
 			server.wat_state.change_state(NODE_READY);
+			server.populate_hash_table();
+			server.print_hash_table();
 		}
 
 		// set periods for maintain and gossip independently

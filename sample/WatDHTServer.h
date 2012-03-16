@@ -58,6 +58,8 @@ class WatDHTServer {
   void update_connections(const NodeID& input, bool ping_nodes);
 
   void printConnections();
+  void populate_hash_table();
+  void print_hash_table();
 
   //RPC functions
   bool get(std::string& _return, const std::string& key, std::string ip, int port);
