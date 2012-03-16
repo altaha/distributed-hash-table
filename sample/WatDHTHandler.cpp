@@ -181,8 +181,24 @@ void WatDHTHandler::migrate_kv(std::map<std::string, std::string> & _return,
 	}
 
 	if (server->isOwner(nid)) { // nid is my successor
-		std::map<std::string, std::string>::iterator itlow = server->hash_table.lower_bound(nid); // get pointer to key that is >= nid
-		_return.insert(itlow,server->hash_table.end()); 			// copy key/value pairs for returning
+		pthread_rwlock_rdlock(&server->hash_mutex);
+		std::map<std::string, std::string>::iterator itlow = server->hash_table.lower_bound(nid), it1; // get pointer to key that is >= nid
+		std::map<std::string, long>::iterator it2;
+ 		_return.insert(itlow,server->hash_table.end()); 			// copy key/value pairs for returning
+		pthread_rwlock_unlock(&server->hash_mutex);
+		it1 = _return.begin();
+		while(it1!= _return.end()){
+			//lazy delete expired keys
+			if( (it2 = server->stale_table.find(it1->first)) != server->stale_table.end()) {//key exists in stale table
+				if (time(NULL) > it2->second ){ // key has expired
+					_return.erase(it1->first);	// do not return expired keys
+				}
+				pthread_rwlock_wrlock(&(server->hash_mutex));
+				server->stale_table.erase(it1->first);	// remove key from stale table
+				pthread_rwlock_unlock(&(server->hash_mutex));
+			}
+			it1++;
+		}
 		pthread_rwlock_wrlock(&(server->hash_mutex));
 		server->hash_table.erase(itlow,server->hash_table.end());	// delete pairs from local structure
 		pthread_rwlock_unlock(&(server->hash_mutex));
