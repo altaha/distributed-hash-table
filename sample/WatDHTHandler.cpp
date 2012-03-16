@@ -182,9 +182,21 @@ void WatDHTHandler::migrate_kv(std::map<std::string, std::string> & _return,
 
 	if (server->isOwner(nid)) { // nid is my successor
 		pthread_rwlock_rdlock(&server->hash_mutex);
-		std::map<std::string, std::string>::iterator itlow = server->hash_table.lower_bound(nid), it1; // get pointer to key that is >= nid
+		std::map<std::string, std::string>::iterator itlow, ithigh, it1; // get pointer to key that is >= nid
 		std::map<std::string, long>::iterator it2;
- 		_return.insert(itlow,server->hash_table.end()); 			// copy key/value pairs for returning
+		WatID x;
+		x.copy_from(nid);
+		if (x <= server->get_id()) {
+			itlow = server->hash_table.lower_bound(nid);
+			ithigh = server->hash_table.upper_bound(server->get_NodeID().id);
+			_return.insert(itlow,ithigh); 			// copy key/value pairs for returning
+		}
+		else {
+			itlow = server->hash_table.lower_bound(server->get_NodeID().id);
+			ithigh = server->hash_table.upper_bound(nid);
+			_return.insert(server->hash_table.begin(), itlow); 			// copy key/value pairs for returning
+			_return.insert(ithigh, server->hash_table.end());
+		}
 		pthread_rwlock_unlock(&server->hash_mutex);
 		it1 = _return.begin();
 		while(it1!= _return.end()){
